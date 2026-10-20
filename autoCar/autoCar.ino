@@ -28,14 +28,14 @@ const unsigned long US_RISE_TIMEOUT_US       = 8000;  // 8ms timeout for echo to
 const unsigned long US_FALL_TIMEOUT_US       = 24000; // 24ms (~412cm) maximum echo wait duration
 const int DISTANCE_MIN_VALID_CM               = 2;
 const int DISTANCE_MAX_VALID_CM               = 400;
-const int DISTANCE_STOP_CM                    = 15;    // Complete stop threshold (<=15cm)
-const int DISTANCE_CLEAR_CM                   = 25;    // Auto-brake release threshold (>=25cm)
-const int DISTANCE_SLOW_CM                    = 60;    // Collision range threshold (<60cm = 40% forward)
+const int DISTANCE_STOP_CM                    = 80;    // Complete stop threshold (<=80cm)
+const int DISTANCE_CLEAR_CM                   = 90;    // Auto-brake release threshold (>=90cm)
+const int DISTANCE_SLOW_CM                    = 150;   // Collision range threshold (<150cm = 40% forward)
 const uint8_t SENSOR_FAULT_THRESHOLD          = 3;     // 3 consecutive missed readings for fault
 
 // Forward Throttle Limits
 const float THROTTLE_LIMIT_DEFAULT            = 0.65f; // Default 65% forward max (user cannot override)
-const float THROTTLE_LIMIT_SLOW               = 0.40f; // 40% forward max when < 60cm
+const float THROTTLE_LIMIT_SLOW               = 0.40f; // 40% forward max when < 150cm
 const float THROTTLE_LIMIT_BOOST              = 1.00f; // 100% temporary headroom during boost
 
 // Ultrasonic Non-Blocking State Machine States
@@ -54,7 +54,7 @@ unsigned long usEchoStartTime = 0;
 int currentDistanceCm = 0;
 bool sensorHealthy = false;          // Starts unhealthy until first valid echo
 bool autoBrakeEnabled = true;        // Defaults ON every boot, not persisted
-bool obstacleLatch = false;          // Latches at <=15cm, clears at >=25cm
+bool obstacleLatch = false;          // Latches at <=80cm, clears at >=90cm
 bool forwardBlocked = true;          // Initially true because sensorHealthy is false & autoBrakeEnabled is true
 uint8_t consecutiveInvalidCount = 0;
 
@@ -136,9 +136,9 @@ const unsigned long COOLDOWN_DURATION_MS = 20000;  // 20-second cooldown
 volatile unsigned long lastBoostTime  = 0;
 
 // Gyro control parameters
-const float GYRO_SCALE            = 0.5f;   // Responsiveness scaling
+const float GYRO_SCALE            = 1.0f;   // Full travel scaling (1.0 = full 1000us - 2000us deflection)
 const float GYRO_THRESHOLD_DEG    = 3.0f;   // Deadzone angle
-const float GYRO_MAX_TILT_DEG     = 30.0f;  // Max tilt angle for full deflection
+const float GYRO_MAX_TILT_DEG     = 25.0f;  // Max tilt angle for full deflection
 
 int currentThrottleUs                 = PULSE_NEUTRAL_US;
 int currentSteeringUs                 = PULSE_NEUTRAL_US;
@@ -228,6 +228,25 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       background: rgba(239, 68, 68, 0.15);
       color: #ef4444;
       border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    .badge.ping {
+      background: rgba(6, 182, 212, 0.12);
+      color: #06b6d4;
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      min-width: 64px;
+      justify-content: center;
+    }
+    .badge.ping.warn {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .badge.ping.bad {
+      background: rgba(239, 68, 68, 0.12);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.35);
     }
     .dot {
       width: 7px;
@@ -651,6 +670,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           <span class="dot"></span>
           <span id="statusText">CONNECTING</span>
         </div>
+        <div id="pingBadge" class="badge ping">
+          <span id="pingText">PING: --</span>
+        </div>
       </div>
     </header>
 
@@ -750,6 +772,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     // DOM Elements
     const statusBadge = document.getElementById('statusBadge');
     const statusText = document.getElementById('statusText');
+    const pingBadge = document.getElementById('pingBadge');
+    const pingText = document.getElementById('pingText');
+    let lastPingSentTime = 0;
+    let pingIntervalId = null;
+
+    function sendPing() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        lastPingSentTime = performance.now();
+        ws.send(`PING:${Math.round(lastPingSentTime)}`);
+      }
+    }
     const throttleTrack = document.getElementById('throttleTrack');
     const throttleKnob = document.getElementById('throttleKnob');
     const throttleReadout = document.getElementById('throttleReadout');
@@ -897,9 +930,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       } else if (sensorHealthy) {
         if (currentDistanceCm > 0 && currentDistanceCm <= 400) {
           radarDistance.textContent = currentDistanceCm;
-          if (currentDistanceCm <= 15) {
+          if (currentDistanceCm <= 80) {
             radarDistance.style.color = '#ef4444';
-          } else if (currentDistanceCm <= 25) {
+          } else if (currentDistanceCm <= 90) {
             radarDistance.style.color = '#f59e0b';
           } else {
             radarDistance.style.color = '#10b981';
@@ -946,17 +979,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         radarDot.style.background = '#ef4444';
         radarAlertBanner.textContent = 'SENSOR FAULT // FORWARD BLOCKED';
         radarAlertBanner.style.display = 'block';
-      } else if (isForwardBlocked || (sensorHealthy && currentDistanceCm > 0 && currentDistanceCm <= 15)) {
+      } else if (isForwardBlocked || (sensorHealthy && currentDistanceCm > 0 && currentDistanceCm <= 80)) {
         radarBadge.textContent = 'STOP ZONE';
         radarBadge.className = 'radar-badge stop-zone';
         radarDot.style.background = '#ef4444';
-        radarAlertBanner.textContent = 'OBSTACLE DETECTED (<= 15CM) // FORWARD STOPPED';
+        radarAlertBanner.textContent = 'OBSTACLE DETECTED (<= 80CM) // FORWARD STOPPED';
         radarAlertBanner.style.display = 'block';
-      } else if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 60) {
+      } else if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 150) {
         radarBadge.textContent = 'SLOW (40%)';
         radarBadge.className = 'radar-badge caution';
         radarDot.style.background = '#f59e0b';
-        radarAlertBanner.textContent = 'COLLISION RANGE (< 60CM) // SPEED REDUCED TO 40%';
+        radarAlertBanner.textContent = 'COLLISION RANGE (< 150CM) // SPEED REDUCED TO 40%';
         radarAlertBanner.style.display = 'block';
       } else {
         radarBadge.textContent = 'CLEAR';
@@ -965,8 +998,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         radarAlertBanner.style.display = 'none';
       }
 
-      // 4. Boost safety synchronization: cancel boost if blocked or in collision range (< 60cm)
-      if ((isForwardBlocked || (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 60)) && isBoosting) {
+      // 4. Boost safety synchronization: cancel boost if blocked or in collision range (< 150cm)
+      if ((isForwardBlocked || (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 150)) && isBoosting) {
         isBoosting = false;
         if (boostTimer) {
           clearInterval(boostTimer);
@@ -1278,12 +1311,21 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         statusBadge.className = 'badge connected';
         statusText.textContent = 'ONLINE (LOW-LATENCY)';
         updateRadarUI();
+        sendPing();
+        if (pingIntervalId) clearInterval(pingIntervalId);
+        pingIntervalId = setInterval(sendPing, 5000);
       };
 
       ws.onclose = () => {
         statusBadge.className = 'badge disconnected';
         statusText.textContent = 'DISCONNECTED (FAILSAFE)';
         receivedFirstTelemetry = false;
+        if (pingIntervalId) {
+          clearInterval(pingIntervalId);
+          pingIntervalId = null;
+        }
+        pingText.textContent = 'PING: --';
+        pingBadge.className = 'badge ping';
         updateRadarUI();
         setTimeout(initWebSocket, 1000);
       };
@@ -1293,6 +1335,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           const str = event.data.trim();
           if (str.startsWith("U:")) {
             handleUltrasonicTelemetry(str);
+          } else if (str.startsWith("PONG")) {
+            const now = performance.now();
+            let rtt = 0;
+            if (str.startsWith("PONG:")) {
+              const sentTime = parseFloat(str.substring(5));
+              rtt = Math.max(0, Math.round(now - sentTime));
+            } else if (lastPingSentTime > 0) {
+              rtt = Math.max(0, Math.round(now - lastPingSentTime));
+            }
+            pingText.textContent = `PING: ${rtt}ms`;
+            pingBadge.className = 'badge ping' + (rtt > 150 ? ' bad' : (rtt > 60 ? ' warn' : ''));
           }
         }
       };
@@ -1300,6 +1353,12 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       ws.onerror = () => {
         statusBadge.className = 'badge disconnected';
         statusText.textContent = 'ERROR';
+        if (pingIntervalId) {
+          clearInterval(pingIntervalId);
+          pingIntervalId = null;
+        }
+        pingText.textContent = 'PING: --';
+        pingBadge.className = 'badge ping';
         updateRadarUI();
         ws.close();
       };
@@ -1328,13 +1387,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           }
 
           // Move the on-screen knobs visually with the phone tilt
-          const normThrottle = Math.max(-1.0, Math.min(1.0, tiltPitch / 30.0));
-          const normSteering = Math.max(-1.0, Math.min(1.0, tiltRoll / 30.0));
+          const normThrottle = Math.max(-1.0, Math.min(1.0, tiltPitch / 25.0));
+          const normSteering = Math.max(-1.0, Math.min(1.0, tiltRoll / 25.0));
           updateThrottleVisual(normThrottle);
           updateSteeringVisual(normSteering);
 
           let gyroForwardScale = maxThrottlePercent / 100.0;
-          if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 60) {
+          if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 150) {
             gyroForwardScale = 0.40;
           } else if (isBoosting) {
             gyroForwardScale = 1.0;
@@ -1409,7 +1468,7 @@ int resolveThrottle(int requestedThrottleUs) {
   // FORWARD (requested < 1500us):
   if (requestedThrottleUs < PULSE_NEUTRAL_US) {
     if (autoBrakeEnabled && forwardBlocked) {
-      // Complete stop zone (<=15cm) or sensor fault
+      // Complete stop zone (<=80cm) or sensor fault
       isBoostingActive = false;
       return PULSE_NEUTRAL_US;
     }
@@ -1418,11 +1477,11 @@ int resolveThrottle(int requestedThrottleUs) {
     float maxForwardScale = THROTTLE_LIMIT_DEFAULT; // 65% default limit
 
     if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < DISTANCE_SLOW_CM) {
-      // Collision caution zone (< 60cm): reduce throttle limit to 40%
+      // Collision caution zone (< 150cm): reduce throttle limit to 40%
       maxForwardScale = THROTTLE_LIMIT_SLOW;
       if (isBoostingActive) {
         isBoostingActive = false;
-        Serial.println("[BOOST] Boost cancelled: entered <60cm collision caution zone.");
+        Serial.println("[BOOST] Boost cancelled: entered <150cm collision caution zone.");
       }
     } else if (isBoostingActive) {
       // Boost mode: temporarily unlocks up to 100%
@@ -1697,7 +1756,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       // 2. Boost commands
       else if (payloadStr == "BOOST_ON") {
         if (forwardBlocked || (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < DISTANCE_SLOW_CM)) {
-          Serial.println("[BOOST] Boost request rejected: obstacle in collision range (< 60cm).");
+          Serial.println("[BOOST] Boost request rejected: obstacle in collision range (< 150cm).");
         } else {
           long timeSinceLastBoost = now - lastBoostTime;
           if (!isBoostingActive && (lastBoostTime == 0 || timeSinceLastBoost >= (long)COOLDOWN_DURATION_MS)) {
@@ -1733,7 +1792,17 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
         Serial.println("[BOOST] Boost deactivated.");
         lastPacketTime = now;
       }
-      // 3. Joystick packet telemetry: "T:%d,S:%d"
+      // 3. Ping command: echoes back "PONG:<ts>" for live latency measurement
+      else if (strncmp((char*)payload, "PING", 4) == 0) {
+        char pongBuf[32];
+        if (strncmp((char*)payload, "PING:", 5) == 0) {
+          snprintf(pongBuf, sizeof(pongBuf), "PONG:%s", (char*)payload + 5);
+        } else {
+          snprintf(pongBuf, sizeof(pongBuf), "PONG");
+        }
+        webSocket.sendTXT(num, pongBuf);
+      }
+      // 4. Joystick packet telemetry: "T:%d,S:%d"
       else if (sscanf((char*)payload, "T:%d,S:%d", &parsedThrottle, &parsedSteering) == 2) {
         currentThrottleUs = constrain(parsedThrottle, PULSE_MIN_US, PULSE_MAX_US);
         currentSteeringUs = constrain(parsedSteering, PULSE_MIN_US, PULSE_MAX_US);

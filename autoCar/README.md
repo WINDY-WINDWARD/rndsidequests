@@ -58,11 +58,12 @@ HC-SR04 Echo (5V)
 
 ## Features
 
-- **Front HC-SR04 Radar & Auto-Brake**: Collision avoidance at <= 15 cm (full stop), 60 cm caution zone (forward throttle reduced to 40%), release at >= 25 cm, 60 ms sampling, and web portal override.
+- **Front HC-SR04 Radar & Auto-Brake**: Collision avoidance at <= 80 cm (full stop), 150 cm caution zone (forward throttle reduced to 40%), release at >= 90 cm, 60 ms sampling, and web portal override.
+- **Live Ping Latency Display**: Real-time round-trip latency badge next to the online status board, checked every 5 seconds.
 - **Web Portal Controls**: Dual thumb joysticks styled in dark-amber terminal aesthetic.
 - **Direction & Pulse Logic**: Physical ESC/steering calibrated (1000 µs forward/right, 1500 µs neutral/center, 2000 µs reverse/left).
-- **Gyro Tilt Control**: Optional autopilot using device orientation (pitch & roll).
-- **Boost Mode**: Temporarily raises forward throttle ceiling from locked 65% to 100% (5s burst, 20s cooldown; does not force automatic acceleration), automatically cancelled and rejected when in collision caution (< 60 cm) or stop zone (<= 15 cm).
+- **Gyro Tilt Control**: Full end-to-end steering servo travel (1000–2000 µs) calibrated to 25° tilt angle.
+- **Boost Mode**: Temporarily raises forward throttle ceiling from locked 65% to 100% (5s burst, 20s cooldown; does not force automatic acceleration), automatically cancelled and rejected when in collision caution (< 150 cm) or stop zone (<= 80 cm).
 - **Tuning Panel**: Speed limiter locked to 65% (user override disallowed; boost unlocks 100% temporary headroom), steering trim adjustment.
 - **OTA Web Updates**: In-browser firmware flashing via ElegantOTA (`/update`) with neutral motor lock during upload.
 
@@ -73,8 +74,9 @@ HC-SR04 Echo (5V)
 - **Cadence & Range:** 60 ms sample cadence, 30 ms echo timeout (~515 cm), valid measurement range 2–400 cm.
 - **Non-blocking Sampling:** Non-blocking state machine in `loop()` without `pulseIn()` or interrupts to maintain IRAM headroom and low-latency Wi-Fi handling.
 - **Obstacle Latch:**
-  - Engages when distance `<= 15 cm`, forcing forward throttle to neutral (`1500 µs`).
-  - Clears when distance `>= 25 cm` (10 cm hysteresis prevents throttle chatter).
+  - Engages when distance `<= 80 cm`, forcing forward throttle to neutral (`1500 µs`).
+  - Clears when distance `>= 90 cm` (10 cm hysteresis prevents throttle chatter).
+  - Collision caution zone active when distance `< 150 cm`, limiting forward throttle to 40% (`1300 µs`).
 - **Selective Direction Gating:**
   - Only forward throttle (`< 1500 µs`) is gated.
   - Reverse throttle (`> 1500 µs`) and steering are **never** blocked, allowing immediate backing out of dead ends.
@@ -127,6 +129,7 @@ y:4.2,tx:-1.5,ty:3.0   # yaw, tiltX (roll), tiltY (pitch) in degrees
 | `AUTOBRAKE_ON`   | Enable auto-brake collision avoidance                      |
 | `AUTOBRAKE_OFF`  | Override/disable auto-brake                                |
 | `GYRO_CAL`       | Zero current orientation angles                            |
+| `PING:<ts>`      | Echo test for latency (`PONG:<ts>` response)              |
 
 ### Ultrasonic Telemetry (Server -> Client, 200 ms cadence & state changes)
 ```text
@@ -144,12 +147,14 @@ Example: `U:12,1,1,1` (12 cm distance, sensor healthy, forward blocked, auto-bra
 | `PIN_ULTRASONIC_ECHO`          | 12      | NodeMCU D6 / GPIO 12                       |
 | `US_MEASURE_CADENCE_MS`        | 60      | Ultrasonic sampling cadence                |
 | `US_ECHO_TIMEOUT_US`           | 30000   | Echo timeout in microseconds               |
-| `DISTANCE_STOP_CM`             | 15      | Auto-brake trigger threshold (cm)          |
-| `DISTANCE_CLEAR_CM`            | 25      | Auto-brake release threshold (cm)          |
+| `DISTANCE_STOP_CM`             | 80      | Auto-brake trigger threshold (cm)          |
+| `DISTANCE_CLEAR_CM`            | 90      | Auto-brake release threshold (cm)          |
+| `DISTANCE_SLOW_CM`             | 150     | Collision caution slowdown threshold (cm)  |
 | `SENSOR_FAULT_THRESHOLD`       | 3       | Consecutive invalid readings before fault  |
 | `BOOST_DURATION_MS`            | 5000    | Boost burst length                         |
 | `COOLDOWN_DURATION_MS`         | 20000   | Time between boosts                        |
-| `GYRO_SCALE`                   | 0.50    | Motion sensitivity factor                  |
+| `GYRO_SCALE`                   | 1.00    | Motion sensitivity factor (full travel)    |
+| `GYRO_MAX_TILT_DEG`            | 25.0    | Max tilt angle for full deflection (deg)   |
 | `MAX_THROTTLE_PERCENT`         | 65      | Default speed limiter ceiling (%)          |
 
 ---

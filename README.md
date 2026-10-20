@@ -1,6 +1,6 @@
 # AutoCar RC Controller & Tools
 
-A dual-axis joystick-based remote controller for NodeMCU ESP8266, featuring web portal control, gyro tilt sensing with guided arming delay, HC-SR04 ultrasonic forward collision caution (40% throttle < 60cm, full stop <= 15cm), locked 65% speed limiter, and temporary 100% boost headroom.
+A dual-axis joystick-based remote controller for NodeMCU ESP8266, featuring web portal control, live ping latency monitoring (5s cadence), gyro tilt sensing with guided arming delay and full end-to-end steering travel, HC-SR04 ultrasonic forward collision caution (40% throttle < 150cm, full stop <= 80cm, release >= 90cm), locked 65% speed limiter, and temporary 100% boost headroom.
 
 ---
 
@@ -26,8 +26,9 @@ rndsidequests/
 ### Overview
 A web-based RC car controller for NodeMCU ESP-12E with:
 - **Dual-axis virtual joysticks** (thumb controls on mobile)
-- **Front Ultrasonic Auto-Brake & Telemetry** (HC-SR04 collision avoidance, 15 cm stop / 25 cm release)
-- **Gyro tilt sensing** (optional autopilot mode)
+- **Front Ultrasonic Auto-Brake & Telemetry** (HC-SR04 collision avoidance, 80 cm stop / 90 cm release, 150 cm slowdown caution)
+- **Live Ping Latency Display** (live round-trip ping badge next to online status board, checked every 5 seconds)
+- **Gyro tilt sensing** (optional autopilot mode with full 1000–2000 µs steering deflection at 25° tilt)
 - **Boost mode** (temporary max throttle - 5s burst, 20s cooldown)
 - **Tuning panel** (speed limiter, steering trim)
 - **OTA firmware updates** (web upload via ElegantOTA at `/update`)
@@ -82,8 +83,9 @@ HC-SR04 Echo (5V)
 
 - **Non-blocking State Machine:** Samples distance at 60 ms cadence with a 30 ms echo timeout; runs in `loop()` without `pulseIn()` or hardware interrupts to preserve IRAM headroom.
 - **Valid Range:** 2 cm to 400 cm.
-- **Stop Threshold:** `<= 15 cm` latches obstacle detection and forces forward throttle to neutral (`1500 µs`).
-- **Release Threshold:** `>= 25 cm` releases obstacle latch (10 cm hysteresis prevents oscillating stops).
+- **Stop Threshold:** `<= 80 cm` latches obstacle detection and forces forward throttle to neutral (`1500 µs`).
+- **Release Threshold:** `>= 90 cm` releases obstacle latch (10 cm hysteresis prevents oscillating stops).
+- **Collision Caution Zone:** `< 150 cm` reduces forward throttle limit to 40% (`1300 µs`).
 - **Directional Gating:** Gates **only** forward throttle (`< 1500 µs`). Reverse (`> 1500 µs`) and steering are **never** blocked, allowing immediate backing out of dead ends.
 - **Fault Handling:**
   - Firmware boots with sensor marked unhealthy and forward blocked until the first valid echo is confirmed.
@@ -92,7 +94,7 @@ HC-SR04 Echo (5V)
 - **Throttle Priority Hierarchy:**
   1. Watchdog failsafe neutral (highest priority, timeout > 500 ms)
   2. Auto-brake neutral (active when forward is blocked and forward throttle is requested)
-  3. Collision caution zone 40% forward limit (`1300 µs` when < 60 cm)
+  3. Collision caution zone 40% forward limit (`1300 µs` when < 150 cm)
   4. Boost mode temporary 100% forward headroom (`1000 µs` during 5s burst)
   5. Default locked 65% forward ceiling (`1175 µs`)
   6. Requested operator throttle (joystick / gyro)
@@ -127,6 +129,7 @@ Yaw (deg), tiltX (roll), tiltY (pitch) — used for tilt driving.
 | `AUTOBRAKE_ON`   | Enable ultrasonic auto-brake & obstacle latch |
 | `AUTOBRAKE_OFF`  | Override/disable auto-brake                  |
 | `GYRO_CAL`       | Recalibrate gyro level zero                  |
+| `PING:<ts>`      | Measure latency (server echoes `PONG:<ts>`)  |
 
 **Server-to-Client Telemetry (200 ms cadence & state changes):**
 ```text
@@ -156,7 +159,7 @@ U:<cm>,<healthy>,<forwardBlocked>,<autoBrakeEnabled>
 | Issue                     | Solution                                                              |
 |---------------------------|-----------------------------------------------------------------------|
 | "SENSOR FAULT" displayed  | Check Echo voltage divider (1k/2k), Trig pin D5, and 5V supply to VCC |
-| Car will not move forward | Obstacle detected (< 15 cm) or sensor fault. Click `AUTO-BRAKE: OFF` to override |
+| Car will not move forward | Obstacle detected (<= 80 cm) or sensor fault. Click `AUTO-BRAKE: OFF` to override |
 | "No port detected"        | Connect via Wi-Fi AP and use OTA update (`http://192.168.4.1/update`) |
 | Reverse works, forward stops | Auto-brake engaged; clear the front area or toggle auto-brake override |
 

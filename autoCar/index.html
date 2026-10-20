@@ -81,6 +81,25 @@
       color: #ef4444;
       border: 1px solid rgba(239, 68, 68, 0.4);
     }
+    .badge.ping {
+      background: rgba(6, 182, 212, 0.12);
+      color: #06b6d4;
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      min-width: 64px;
+      justify-content: center;
+    }
+    .badge.ping.warn {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .badge.ping.bad {
+      background: rgba(239, 68, 68, 0.12);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
     .dot {
       width: 7px;
       height: 7px;
@@ -503,6 +522,9 @@
           <span class="dot"></span>
           <span id="statusText">CONNECTING</span>
         </div>
+        <div id="pingBadge" class="badge ping">
+          <span id="pingText">PING: --</span>
+        </div>
       </div>
     </header>
 
@@ -602,6 +624,17 @@
     // DOM Elements
     const statusBadge = document.getElementById('statusBadge');
     const statusText = document.getElementById('statusText');
+    const pingBadge = document.getElementById('pingBadge');
+    const pingText = document.getElementById('pingText');
+    let lastPingSentTime = 0;
+    let pingIntervalId = null;
+
+    function sendPing() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        lastPingSentTime = performance.now();
+        ws.send(`PING:${Math.round(lastPingSentTime)}`);
+      }
+    }
     const throttleTrack = document.getElementById('throttleTrack');
     const throttleKnob = document.getElementById('throttleKnob');
     const throttleReadout = document.getElementById('throttleReadout');
@@ -749,9 +782,9 @@
       } else if (sensorHealthy) {
         if (currentDistanceCm > 0 && currentDistanceCm <= 400) {
           radarDistance.textContent = currentDistanceCm;
-          if (currentDistanceCm <= 15) {
+          if (currentDistanceCm <= 80) {
             radarDistance.style.color = '#ef4444';
-          } else if (currentDistanceCm <= 25) {
+          } else if (currentDistanceCm <= 90) {
             radarDistance.style.color = '#f59e0b';
           } else {
             radarDistance.style.color = '#10b981';
@@ -798,17 +831,17 @@
         radarDot.style.background = '#ef4444';
         radarAlertBanner.textContent = 'SENSOR FAULT // FORWARD BLOCKED';
         radarAlertBanner.style.display = 'block';
-      } else if (isForwardBlocked || (sensorHealthy && currentDistanceCm > 0 && currentDistanceCm <= 15)) {
+      } else if (isForwardBlocked || (sensorHealthy && currentDistanceCm > 0 && currentDistanceCm <= 80)) {
         radarBadge.textContent = 'STOP ZONE';
         radarBadge.className = 'radar-badge stop-zone';
         radarDot.style.background = '#ef4444';
-        radarAlertBanner.textContent = 'OBSTACLE DETECTED (<= 15CM) // FORWARD STOPPED';
+        radarAlertBanner.textContent = 'OBSTACLE DETECTED (<= 80CM) // FORWARD STOPPED';
         radarAlertBanner.style.display = 'block';
-      } else if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 60) {
+      } else if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 150) {
         radarBadge.textContent = 'SLOW (40%)';
         radarBadge.className = 'radar-badge caution';
         radarDot.style.background = '#f59e0b';
-        radarAlertBanner.textContent = 'COLLISION RANGE (< 60CM) // SPEED REDUCED TO 40%';
+        radarAlertBanner.textContent = 'COLLISION RANGE (< 150CM) // SPEED REDUCED TO 40%';
         radarAlertBanner.style.display = 'block';
       } else {
         radarBadge.textContent = 'CLEAR';
@@ -817,8 +850,8 @@
         radarAlertBanner.style.display = 'none';
       }
 
-      // 4. Boost safety synchronization: cancel boost if blocked or in collision range (< 60cm)
-      if ((isForwardBlocked || (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 60)) && isBoosting) {
+      // 4. Boost safety synchronization: cancel boost if blocked or in collision range (< 150cm)
+      if ((isForwardBlocked || (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 150)) && isBoosting) {
         isBoosting = false;
         if (boostTimer) {
           clearInterval(boostTimer);
@@ -1130,12 +1163,21 @@
         statusBadge.className = 'badge connected';
         statusText.textContent = 'ONLINE (LOW-LATENCY)';
         updateRadarUI();
+        sendPing();
+        if (pingIntervalId) clearInterval(pingIntervalId);
+        pingIntervalId = setInterval(sendPing, 5000);
       };
 
       ws.onclose = () => {
         statusBadge.className = 'badge disconnected';
         statusText.textContent = 'DISCONNECTED (FAILSAFE)';
         receivedFirstTelemetry = false;
+        if (pingIntervalId) {
+          clearInterval(pingIntervalId);
+          pingIntervalId = null;
+        }
+        pingText.textContent = 'PING: --';
+        pingBadge.className = 'badge ping';
         updateRadarUI();
         setTimeout(initWebSocket, 1000);
       };
@@ -1145,6 +1187,17 @@
           const str = event.data.trim();
           if (str.startsWith("U:")) {
             handleUltrasonicTelemetry(str);
+          } else if (str.startsWith("PONG")) {
+            const now = performance.now();
+            let rtt = 0;
+            if (str.startsWith("PONG:")) {
+              const sentTime = parseFloat(str.substring(5));
+              rtt = Math.max(0, Math.round(now - sentTime));
+            } else if (lastPingSentTime > 0) {
+              rtt = Math.max(0, Math.round(now - lastPingSentTime));
+            }
+            pingText.textContent = `PING: ${rtt}ms`;
+            pingBadge.className = 'badge ping' + (rtt > 150 ? ' bad' : (rtt > 60 ? ' warn' : ''));
           }
         }
       };
@@ -1152,6 +1205,12 @@
       ws.onerror = () => {
         statusBadge.className = 'badge disconnected';
         statusText.textContent = 'ERROR';
+        if (pingIntervalId) {
+          clearInterval(pingIntervalId);
+          pingIntervalId = null;
+        }
+        pingText.textContent = 'PING: --';
+        pingBadge.className = 'badge ping';
         updateRadarUI();
         ws.close();
       };
@@ -1180,13 +1239,13 @@
           }
 
           // Move the on-screen knobs visually with the phone tilt
-          const normThrottle = Math.max(-1.0, Math.min(1.0, tiltPitch / 30.0));
-          const normSteering = Math.max(-1.0, Math.min(1.0, tiltRoll / 30.0));
+          const normThrottle = Math.max(-1.0, Math.min(1.0, tiltPitch / 25.0));
+          const normSteering = Math.max(-1.0, Math.min(1.0, tiltRoll / 25.0));
           updateThrottleVisual(normThrottle);
           updateSteeringVisual(normSteering);
 
           let gyroForwardScale = maxThrottlePercent / 100.0;
-          if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 60) {
+          if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 150) {
             gyroForwardScale = 0.40;
           } else if (isBoosting) {
             gyroForwardScale = 1.0;
