@@ -1185,11 +1185,32 @@
           updateThrottleVisual(normThrottle);
           updateSteeringVisual(normSteering);
 
-          const tUs = Math.round(1500 - (normThrottle * 500 * (maxThrottlePercent / 100.0)));
-          const sUs = Math.round(1500 - (normSteering * 500));
+          let gyroForwardScale = maxThrottlePercent / 100.0;
+          if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 60) {
+            gyroForwardScale = 0.40;
+          } else if (isBoosting) {
+            gyroForwardScale = 1.0;
+          }
+          const gyroReverseScale = maxThrottlePercent / 100.0;
+
+          let tUs;
+          if (normThrottle > 0) {
+            if (autoBrakeEnabled && isForwardBlocked) {
+              tUs = 1500;
+            } else {
+              tUs = Math.round(1500 - (normThrottle * 500 * gyroForwardScale));
+            }
+          } else if (normThrottle < 0) {
+            tUs = Math.round(1500 - (normThrottle * 500 * gyroReverseScale));
+          } else {
+            tUs = 1500;
+          }
+
+          const sUs = Math.max(1000, Math.min(2000, Math.round(1500 - (normSteering * 500) - steeringTrimUs)));
           throttleReadout.textContent = `${tUs} µs (GYRO)`;
           steeringReadout.textContent = `${sUs} µs (GYRO)`;
-        } else if (!isUserTouching && !gyroArming) {
+        } else {
+          // Manual joystick touch controls (touch has priority over gyro)
           const { tUs, sUs } = calculatePwm();
           ws.send(`T:${tUs},S:${sUs}`);
         }
