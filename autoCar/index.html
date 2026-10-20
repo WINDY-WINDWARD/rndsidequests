@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>RC CAR // WEBSOCKET CONTROLLER</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0c10;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      touch-action: none;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    /* Top Header Bar */
+    header {
+      height: 48px;
+      background: #11141c;
+      border-bottom: 1px solid #1e2533;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 20;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #f59e0b;
+    }
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: #1e293b;
+      color: #94a3b8;
+    }
+    .badge.connected {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .badge.disconnected {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .btn-toggle {
+      background: #1e2533;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-toggle:active {
+      background: #334155;
+    }
+
+    /* --- BOOST MODE STYLING ADDITIONS --- */
+    #boostBtn {
+        background-color: #ef4444 !important; 
+        border-color: #dc2626 !important;
+        transition: background-color 0.3s, border-color 0.3s;
+    }
+
+    /* Trim & Tuning Drawer */
+    #tuning-panel {
+      display: none;
+      background: #141923;
+      border-bottom: 1px solid #232c3d;
+      padding: 10px 20px;
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      align-items: center;
+      font-size: 12px;
+      z-index: 15;
+    }
+    .tune-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tune-item label {
+      color: #94a3b8;
+      font-weight: 600;
+      min-width: 90px;
+    }
+    .tune-item input[type="range"] {
+      width: 140px;
+      accent-color: #f59e0b;
+      cursor: pointer;
+    }
+    .tune-val {
+      min-width: 44px;
+      font-family: monospace;
+      color: #f8fafc;
+      font-weight: 700;
+    }
+
+    /* Main Control Arena */
+    main {
+      flex: 1;
+      display: flex;
+      position: relative;
+      background: radial-gradient(circle at center, #131722 0%, #0a0c10 100%);
+    }
+    .control-zone {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .divider {
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, #222c3e 20%, #222c3e 80%, transparent);
+    }
+    .zone-label {
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      color: #64748b;
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+    .readout {
+      margin-top: 12px;
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #f59e0b;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: 1px solid #1e293b;
+    }
+    /* Throttle Vertical Pad */
+    .vertical-track {
+      width: 90px;
+      height: 240px;
+      background: #11151f;
+      border: 2px solid #1e293b;
+      border-radius: 45px;
+      position: relative;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .track-center-line {
+      position: absolute;
+      top: 50%;
+      left: 10px;
+      right: 10px;
+      height: 2px;
+      background: #334155;
+      transform: translateY(-50%);
+    }
+    .vertical-knob {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #384252, #1a202c);
+      border: 2px solid #475569;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      pointer-events: none;
+      transition: border-color 0.1s;
+    }
+    .vertical-knob::after {
+      content: '';
+      position: absolute;
+      width: 28px;
+      height: 4px;
+      border-radius: 2px;
+      background: #f59e0b;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    /* Steering Horizontal Pad */
+    .horizontal-track {
+      width: 260px;
+      height: 90px;
+      background: #11151f;
+      border: 2px solid #1e293b;
+      border-radius: 45px;
+      position: relative;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .track-center-vert-line {
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      bottom: 10px;
+      width: 2px;
+      background: #334155;
+      transform: translateX(-50%);
+    }
+    .horizontal-knob {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #384252, #1a202c);
+      border: 2px solid #475569;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      pointer-events: none;
+    }
+    .horizontal-knob::after {
+      content: '';
+      position: absolute;
+      width: 4px;
+      height: 28px;
+      border-radius: 2px;
+      background: #06b6d4;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+  </style>
+</head>
+<body id="app">
+  <div class="landscape-hint">
+    ↺ ROTATE YOUR DEVICE TO LANDSCAPE FOR DUAL-THUMB RC CONTROLS
+  </div>
+
+  <header>
+    <div class="brand">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="7" width="20" height="13" rx="2"></rect>
+        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+      </svg>
+      <span>RC // NODEMCU ESP-12E</span>
+    </div>
+    <div class="status-group">
+        <div id="statusBadge" class="badge disconnected">
+          <span class="dot"></span>
+          <span id="statusText">CONNECTING</span>
+        </div>
+        <button id="tuneToggleBtn" class="btn-toggle">TUNING & TRIM</button>
+        <!-- BOOST MODE OVERRIDE -->
+        <button id="boostBtn" class="btn-toggle" style="background-color: #ef4444; border-color: #dc2626;">BOOST (LOCKED)</button>
+    </div>
+  </header>
+
+  <div id="tuning-panel">
+    <div class="tune-item">
+      <label for="speedLimit">MAX THROTTLE:</label>
+      <input type="range" id="speedLimit" min="20" max="100" value="65">
+      <span id="speedVal" class="tune-val">65%</span>
+    </div>
+    <div class="tune-item">
+      <label for="steerTrim">STEER TRIM:</label>
+      <input type="range" id="steerTrim" min="-100" max="100" value="0">
+      <span id="trimVal" class="tune-val">0µs</span>
+    </div>
+    <button id="resetTrimBtn" class="btn-toggle">RESET TRIM</button>
+  </div>
+
+  <main>
+    <!-- LEFT THUMB: THROTTLE -->
+    <section class="control-zone" id="throttleZone">
+      <div class="zone-label">▲ FORWARD / ▼ REVERSE</div >
+      <div class="vertical-track" id="throttleTrack">
+        <div class="track-center-line"></div>
+        <div class="vertical-knob" id="throttleKnob"></div>
+      </div>
+      <div class="readout" id="throttleReadout">1500 µs (NEUTRAL)</div >
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- RIGHT THUMB: STEERING -->
+    <section class="control-zone" id="steeringZone">
+      <div class="zone-label">◄ STEERING ►</div >
+      <div class="horizontal-track" id="steeringTrack">
+        <div class="track-center-vert-line"></div>
+        <div class="horizontal-knob" id="steeringKnob"></div>
+      </div>
+      <div class="readout" id="steeringReadout">1500 µs (CENTER)</div >
+    </section>
+  </main>
+
+  <script>
+// State
+let ws = null;
+let throttleRaw = 0.0; // -1.0 (full reverse) to +1.0 (full forward)
+let steeringRaw = 0.0; // -1.0 (full left) to +1.0 (full right)
+
+let throttleTouchId = null;
+let steeringTouchId = null;
+
+// --- BOOST MODE STATE VARIABLES & CONSTANTS ---
+const BOOST_LIMIT_PERCENT = 65; // Default limit: 65% of max power
+let lastBoostTime = Date.now();  // Time of the last successful boost activation (for cooldown)
+let isBoostingActiveClient = false;// Mirror of server state for UI control
+
+// --- UI ELEMENTS & INITIALIZATION ---
+const statusBadge = document.getElementById('statusBadge');
+const statusText = document.getElementById('statusText');
+const throttleTrack = document.getElementById('throttleTrack');
+const throttleKnob = document.getElementById('throttleKnob');
+const throttleReadout = document.getElementById('throttleReadout');
+const steeringTrack = document.getElementById('steeringTrack');
+const steeringKnob = document.getElementById('steeringKnob');
+const steeringReadout = document.getElementById('steeringReadout');
+
+const tuneToggleBtn = document.getElementById('tuneToggleBtn');
+const boostButton = document.getElementById('boostBtn'); // Get the new button element
+const tuningPanel = document.getElementById('tuning-panel');
+const speedLimitInput = document.getElementById('speedLimit');
+const speedVal = document.getElementById('speedVal');
+const steerTrimInput = document.getElementById('steerTrim');
+const trimVal = document.getElementById('trimVal');
+const resetTrimBtn = document.getElementById('resetTrimBtn');
+
+
+// --- UI SETUP AND EVENT LISTENERS ---
+
+// 1. Toggle Tuning Panel
+tuneToggleBtn.addEventListener('click', () => {
+  tuningPanel.style.display = (tuningPanel.style.display === 'flex') ? 'none' : 'flex';
+});
+
+speedLimitInput.addEventListener('input', (e) => {
+  const val = parseInt(e.target.value);
+  if (val < 10) speedLimitInput.setAttribute('min', '10'); // Safety cap
+  maxThrottlePercent = val;
+  speedVal.textContent = maxThrottlePercent + '%';
+});
+
+steerTrimInput.addEventListener('input', (e) => {
+  const value = parseInt(e.target.value);
+  steeringTrimUs = value;
+  trimVal.textContent = (steeringTrimUs > 0 ? '+' : '') + steeringTrimUs + 'µs';
+  updateOutputs();
+});
+
+resetTrimBtn.addEventListener('click', () => {
+  steerTrimInput.value = 0;
+  steeringTrimUs = 0;
+  trimVal.textContent = '0µs';
+  updateOutputs();
+});
+
+
+// 2. BOOST BUTTON LOGIC (New)
+let cooldownTimeRemaining = 0; // In milliseconds
+let boostTimerInterval = null;
+
+function updateBoostUI() {
+    const now = Date.now();
+    const timeSinceLastBoost = Math.max(0, now - lastBoostTime);
+
+    if (isBoostingActiveClient) {
+        boostButton.textContent = `BOOSTING (${Math.ceil((boostStartTime + 5000 - now) / 1000)}s)`;
+        boostButton.disabled = true;
+        boostButton.style.opacity = '0.8';
+    } else if (cooldownTimeRemaining > 0) {
+        boostButton.textContent = `COOLDOWN (${Math.ceil(cooldownTimeRemaining / 1000)}s)`;
+        boostButton.disabled = true;
+        boostButton.style.opacity = '0.8';
+    } else {
+        // Ready state
+        boostButton.textContent = "BOOST";
+        boostButton.disabled = false;
+        boostButton.style.opacity = '1.0';
+    }
+}
+
+function startBoostCooldown() {
+  const cooldownSeconds = 20;
+  cooldownTimeRemaining = cooldownSeconds * 1000;
+  updateBoostUI();
+
+  if (window.cooldownInterval) clearInterval(window.cooldownInterval);
+  window.cooldownInterval = setInterval(() => {
+    let remaining = cooldownTimeRemaining - 1000;
+    if (remaining < 0) {
+      clearInterval(window.cooldownInterval);
+      cooldownTimeRemaining = 0;
+      updateBoostUI(); // Button is now ready
+    } else {
+      cooldownTimeRemaining = remaining;
+      updateBoostUI();
+    }
+  }, 1000);
+}
+
+async function handleBoostClick() {
+    if (!window.ws || window.ws.readyState !== WebSocket.OPEN) {
+        alert("Not connected to the car.");
+        return;
+    }
+    
+    // Check UI state for readiness before sending command
+    const btnText = boostButton.textContent.toUpperCase();
+    if (btnText.includes("COOLDOWN") || btnText.includes("BOOSTING")) {
+         alert(`Boost unavailable: ${btnText}. Wait until the button reads BOOST.`);
+         return;
+    }
+
+    // Request Boost via WebSocket
+    window.ws.send("BOOST_ON"); 
+    isBoostingActiveClient = true; // Optimistically set client state immediately
+    boostStartTime = Date.now(); 
+    updateBoostUI();
+    startBoostCooldown(); // Start cooldown timer on request, regardless of server response.
+
+}
+
+
+// 3. TOUCH/MOUSE CONTROLLER LOGIC (No functional change needed here)
+const TRACK_V_TRAVEL = 160;
+const TRACK_H_TRAVEL = 170;
+
+function updateThrottleVisual(normVal) {
+  const px = -(normVal * (TRACK_V_TRAVEL / 2));
+  throttleKnob.style.transform = `translate(-50%, calc(-50% + ${px}px))`;
+}
+
+function updateSteeringVisual(normVal) {
+  const px = normVal * (TRACK_H_TRAVEL / 2);
+  steeringKnob.style.transform = `translate(calc(-50% + ${px}px), -50%)`;
+}
+
+// Touch/Mouse Event Listeners (kept identical to original logic)
+throttleTrack.addEventListener('touchstart', (e) => { ... });
+steeringTrack.addEventListener('touchstart', (e) => { ... });
+window.addEventListener('touchmove', (e) => { ... });
+function releaseTouch(id) { ... }
+window.addEventListener('touchend', (e) => { ... });
+window.addEventListener('touchcancel', (e) => { ... });
+
+function handleThrottleMove(clientY) { /* ... implementation unchanged ... */ }
+function handleSteeringMove(clientX) { /* ... implementation unchanged ... */ }
+
+
+// 4. CORE CALCULATIONS & OUTPUTS (Updated)
+function calculatePwm() {
+  // THROTTLE LIMIT APPLIED HERE: Range is scaled down by the boost limit percentage factor.
+  const scaleFactor = BOOST_LIMIT_PERCENT / 100.0; 
+  const tUs = Math.round(1500 - (throttleRaw * 500 * scaleFactor));
+  
+  // Steering with trim offset: clamped strictly between 1000 and 2000
+  let sUs = Math.round(1500 - (steeringRaw * 500) + steeringTrimUs);
+  sUs = Math.max(1000, Math.min(2000, sUs));
+
+  return { tUs, sUs };
+}
+
+
+// 5. WEBSOCKET AND INITIALIZATION
+function initWebSocket() {
+  const host = window.location.hostname || "192.168.4.1";
+  const wsUrl = `ws://${host}:81/`;
+  ws = new WebSocket(wsUrl);
+
+  // Original handlers... (onopen, onclose, onerror)
+
+  // CRITICAL: Update the message handler to process commands
+  const originalOnMessage = ws.onmessage;
+  ws.onmessage = (event) => {
+      handleIncomingMessage(event.data); // Use new function wrapper
+  };
+}
+
+function handleIncomingMessage(data) {
+    // This encapsulates all state machine logic: command processing, telemetry reading, etc.
+    console.log("Received:", data);
+    if (data === "BOOST_ON") {
+        isBoostingActiveClient = true; // Assume success if server sends it
+        boostStartTime = Date.now();
+        updateBoostUI();
+
+    } else if (data === "BOOST_OFF") {
+        isBoostingActiveClient = false; 
+        clearTimeout(boostTimerInterval);
+        updateBoostUI();
+    } 
+    else if (data.startsWith("T:") && data.includes(",S:")) {
+         // Process telemetry packet for normal control updates
+         const match = data.match(/T:([\d]+),S:([\d]+)/);
+         if (match) {
+            let tUs = parseInt(match[1]);
+            let sUs = parseInt(match[2]);
+
+            // If we are NOT boosting and not in failsafe, update raw inputs for visual/state consistency.
+            if (!isBoostingActiveClient && !failsafeActive) {
+                currentThrottleUs = Math.min(Math.max(tUs, 1000), 2000);
+                currentSteeringUs = Math.min(Math.max(sUs, 1000), 2000);
+            }
+         }
+    }
+}
+
+// Global Interval: Send Telemetry Heartbeat (Every 40ms)
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    const { tUs, sUs } = calculatePwm();
+    let payload;
+
+    // If boosting is active client-side, we send the raw T/S values calculated by JS (which are already maxed out or limited).
+    if (isBoostingActiveClient && boostButton.disabled === false) { // Check if UI indicates ready to transmit
+         payload = `T:${tUs},S:${sUs}`; 
+    } else {
+        // Normal telemetry send
+        payload = `T:${tUs},S:${sUs}`;
+    }
+    ws.send(payload);
+  }
+}, 40);
+
+window.addEventListener('DOMContentLoaded', () => {
+    initWebSocket();
+    updateOutputs();
+    startBoostCooldown(); // Initialize the cooldown timer display
+});
+/* --- END BOOST FEATURE CODE --- */
