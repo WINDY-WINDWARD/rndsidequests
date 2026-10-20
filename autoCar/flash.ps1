@@ -42,7 +42,7 @@ if (-not $port) {
 }
 
 Write-Host "[+] Found board on $port. Uploading firmware via USB..." -ForegroundColor Green
-& $cli upload -p $port --fqbn esp8266:esp8266:nodemcuv2 "$sketchDir"
+& $cli upload -p $port --fqbn esp8266:esp8266:nodemcuv2 --input-dir "$OutputDir" "$sketchDir"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Firmware successfully uploaded via USB!" -ForegroundColor Green
