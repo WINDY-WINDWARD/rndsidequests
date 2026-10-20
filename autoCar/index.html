@@ -123,9 +123,170 @@
       border-color: #06b6d4;
       color: #67e8f9;
     }
+    .gyro-status-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid #06b6d4;
+      color: #67e8f9;
+      display: inline-flex;
+      align-items: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .gyro-status-badge.arming {
+      background: rgba(245, 158, 11, 0.2);
+      border-color: #f59e0b;
+      color: #fbbf24;
+    }
+    .gyro-status-badge.warn {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
     @keyframes pulse-red {
       from { transform: scale(1); }
       to { transform: scale(1.05); }
+    }
+    /* Front Ultrasonic Radar Overlay */
+    .radar-overlay {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(17, 20, 28, 0.94);
+      border: 1px solid #1e2533;
+      border-radius: 8px;
+      padding: 6px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      z-index: 10;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      min-width: 200px;
+      pointer-events: auto;
+      touch-action: manipulation;
+    }
+    .radar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .radar-title-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .radar-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+    .radar-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+    .radar-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+    }
+    .radar-badge.clear {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+    .radar-badge.stop-zone {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border-color: #ef4444;
+      animation: pulse-red 0.5s infinite alternate;
+    }
+    .radar-badge.fault {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+    .radar-badge.override {
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+    .radar-badge.caution {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border-color: #f59e0b;
+    }
+    .radar-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .radar-readout {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      font-family: monospace;
+    }
+    .radar-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: #f59e0b;
+      min-width: 38px;
+      text-align: right;
+    }
+    .radar-unit {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+    }
+    .radar-toggle {
+      font-size: 10px;
+      padding: 4px 8px;
+    }
+    .radar-toggle.active-brake {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+    .radar-toggle.override-brake {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border-color: #f59e0b;
+    }
+    .radar-alert {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #fca5a5;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-radius: 4px;
+      padding: 3px 6px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    #boostBtn.blocked {
+      background: #1e2533 !important;
+      border-color: #ef4444 !important;
+      color: #ef4444 !important;
+      cursor: not-allowed !important;
+      animation: none !important;
     }
     /* Trim & Tuning Drawer */
     #tuning-panel {
@@ -334,6 +495,7 @@
       <div class="actions-group">
         <button id="gyroToggleBtn" class="btn-toggle">GYRO: OFF</button>
         <button id="gyroCalBtn" class="btn-toggle" style="display:none;">CALIBRATE</button>
+        <span id="gyroStatus" class="gyro-status-badge" style="display:none;"></span>
         <button id="boostBtn" class="btn-toggle">BOOST</button>
         <button id="tuneToggleBtn" class="btn-toggle">TUNING & TRIM</button>
         <a id="otaBtn" href="/update" target="_blank" class="btn-toggle" style="text-decoration:none; display:inline-flex; align-items:center;">OTA UPDATE</a>
@@ -346,9 +508,8 @@
 
     <div id="tuning-panel">
       <div class="tune-item">
-        <label for="speedLimit">MAX THROTTLE:</label>
-        <input type="range" id="speedLimit" min="20" max="100" value="65">
-        <span id="speedVal" class="tune-val">65%</span>
+        <label>MAX THROTTLE:</label>
+        <span class="tune-val" style="color: #06b6d4; font-weight: 700;">65% (LOCKED // BOOST UNLOCKS 100%)</span>
       </div>
       <div class="tune-item">
         <label for="steerTrim">STEER TRIM:</label>
@@ -360,6 +521,25 @@
     </div>
 
     <main>
+      <!-- TOP-CENTER OVERLAY: FRONT SENSOR & AUTO-BRAKE -->
+      <div id="radarOverlay" class="radar-overlay">
+        <div class="radar-header">
+          <div class="radar-title-group">
+            <span class="radar-dot" id="radarDot"></span>
+            <span class="radar-title">FRONT RADAR</span>
+          </div>
+          <span id="radarBadge" class="radar-badge fault">CONNECTING</span>
+        </div>
+        <div class="radar-content">
+          <div class="radar-readout">
+            <span id="radarDistance" class="radar-value">--</span>
+            <span class="radar-unit">CM</span>
+          </div>
+          <button id="autoBrakeBtn" class="btn-toggle radar-toggle active-brake">AUTO-BRAKE: ON</button>
+        </div>
+        <div id="radarAlertBanner" class="radar-alert" style="display:none;"></div>
+      </div>
+
       <!-- LEFT THUMB: THROTTLE -->
       <section class="control-zone" id="throttleZone">
         <div class="zone-label">▲ FORWARD / ▼ REVERSE</div>
@@ -405,6 +585,13 @@
     let lastBoostTime = 0;
     let boostTimer = null;
 
+    // Ultrasonic & Auto-Brake State
+    let autoBrakeEnabled = true;
+    let sensorHealthy = false;
+    let isForwardBlocked = false;
+    let currentDistanceCm = 0;
+    let receivedFirstTelemetry = false;
+
     // Gyro Mode State
     let gyroActive = false;
     let rawBeta = 0;   // Forward / backward tilt
@@ -424,8 +611,6 @@
 
     const tuneToggleBtn = document.getElementById('tuneToggleBtn');
     const tuningPanel = document.getElementById('tuning-panel');
-    const speedLimitInput = document.getElementById('speedLimit');
-    const speedVal = document.getElementById('speedVal');
     const steerTrimInput = document.getElementById('steerTrim');
     const trimVal = document.getElementById('trimVal');
     const resetTrimBtn = document.getElementById('resetTrimBtn');
@@ -433,6 +618,17 @@
     const boostBtn = document.getElementById('boostBtn');
     const gyroToggleBtn = document.getElementById('gyroToggleBtn');
     const gyroCalBtn = document.getElementById('gyroCalBtn');
+    const gyroStatus = document.getElementById('gyroStatus');
+    let gyroArming = false;
+    let gyroArmTimer = null;
+    let gyroEventCount = 0;
+
+    const radarOverlay = document.getElementById('radarOverlay');
+    const radarBadge = document.getElementById('radarBadge');
+    const radarDot = document.getElementById('radarDot');
+    const radarDistance = document.getElementById('radarDistance');
+    const autoBrakeBtn = document.getElementById('autoBrakeBtn');
+    const radarAlertBanner = document.getElementById('radarAlertBanner');
 
     // ==========================================
     // UI CONTROLS & TUNING
@@ -441,11 +637,7 @@
       tuningPanel.style.display = (tuningPanel.style.display === 'flex') ? 'none' : 'flex';
     });
 
-    speedLimitInput.addEventListener('input', (e) => {
-      maxThrottlePercent = parseInt(e.target.value);
-      speedVal.textContent = maxThrottlePercent + '%';
-      updateOutputs();
-    });
+
 
     steerTrimInput.addEventListener('input', (e) => {
       steeringTrimUs = parseInt(e.target.value);
@@ -465,6 +657,12 @@
     // ==========================================
     function updateBoostButton() {
       const now = Date.now();
+      if (isForwardBlocked) {
+        boostBtn.className = 'btn-toggle blocked';
+        boostBtn.textContent = 'BOOST (BLOCKED)';
+        boostBtn.disabled = true;
+        return;
+      }
       const elapsedSinceBoost = now - lastBoostTime;
 
       if (isBoosting) {
@@ -487,7 +685,7 @@
     let boostStartTime = 0;
     boostBtn.addEventListener('click', () => {
       const now = Date.now();
-      if (isBoosting || (now - lastBoostTime < COOLDOWN_DURATION_MS)) return;
+      if (isForwardBlocked || isBoosting || (now - lastBoostTime < COOLDOWN_DURATION_MS)) return;
 
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send("BOOST_ON");
@@ -515,7 +713,123 @@
     });
 
     // ==========================================
-    // GYRO TILT SENSING
+    // ULTRASONIC RADAR & AUTO-BRAKE
+    // ==========================================
+    autoBrakeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        if (autoBrakeEnabled) {
+          ws.send("AUTOBRAKE_OFF");
+        } else {
+          ws.send("AUTOBRAKE_ON");
+        }
+      }
+    });
+
+    function handleUltrasonicTelemetry(payload) {
+      // Format: U:<cm>,<healthy>,<forwardBlocked>,<autoBrakeEnabled>
+      const parts = payload.substring(2).split(',');
+      if (parts.length < 4) return;
+      currentDistanceCm = parseInt(parts[0], 10) || 0;
+      sensorHealthy = (parts[1] === '1');
+      isForwardBlocked = (parts[2] === '1');
+      autoBrakeEnabled = (parts[3] === '1');
+      receivedFirstTelemetry = true;
+
+      updateRadarUI();
+      updateOutputs();
+    }
+
+    function updateRadarUI() {
+      // 1. Distance Readout
+      if (!receivedFirstTelemetry) {
+        radarDistance.textContent = '--';
+        radarDistance.style.color = '#94a3b8';
+      } else if (sensorHealthy) {
+        if (currentDistanceCm > 0 && currentDistanceCm <= 400) {
+          radarDistance.textContent = currentDistanceCm;
+          if (currentDistanceCm <= 15) {
+            radarDistance.style.color = '#ef4444';
+          } else if (currentDistanceCm <= 25) {
+            radarDistance.style.color = '#f59e0b';
+          } else {
+            radarDistance.style.color = '#10b981';
+          }
+        } else {
+          radarDistance.textContent = '400+';
+          radarDistance.style.color = '#10b981';
+        }
+      } else {
+        radarDistance.textContent = '--';
+        radarDistance.style.color = '#94a3b8';
+      }
+
+      // 2. Auto-Brake Toggle Button
+      if (autoBrakeEnabled) {
+        autoBrakeBtn.textContent = 'AUTO-BRAKE: ON';
+        autoBrakeBtn.className = 'btn-toggle radar-toggle active-brake';
+      } else {
+        autoBrakeBtn.textContent = 'AUTO-BRAKE: OFF';
+        autoBrakeBtn.className = 'btn-toggle radar-toggle override-brake';
+      }
+
+      // 3. Status Badge & Alert Banner
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        radarBadge.textContent = 'LINK LOST';
+        radarBadge.className = 'radar-badge fault';
+        radarDot.style.background = '#ef4444';
+        radarAlertBanner.textContent = 'WEBSOCKET DISCONNECTED';
+        radarAlertBanner.style.display = 'block';
+      } else if (!receivedFirstTelemetry) {
+        radarBadge.textContent = 'CONNECTING';
+        radarBadge.className = 'radar-badge';
+        radarDot.style.background = '#94a3b8';
+        radarAlertBanner.style.display = 'none';
+      } else if (!autoBrakeEnabled) {
+        radarBadge.textContent = 'OVERRIDE';
+        radarBadge.className = 'radar-badge override';
+        radarDot.style.background = '#f59e0b';
+        radarAlertBanner.textContent = 'AUTO-BRAKE OVERRIDDEN';
+        radarAlertBanner.style.display = 'block';
+      } else if (!sensorHealthy) {
+        radarBadge.textContent = 'SENSOR FAULT';
+        radarBadge.className = 'radar-badge fault';
+        radarDot.style.background = '#ef4444';
+        radarAlertBanner.textContent = 'SENSOR FAULT // FORWARD BLOCKED';
+        radarAlertBanner.style.display = 'block';
+      } else if (isForwardBlocked || (sensorHealthy && currentDistanceCm > 0 && currentDistanceCm <= 15)) {
+        radarBadge.textContent = 'STOP ZONE';
+        radarBadge.className = 'radar-badge stop-zone';
+        radarDot.style.background = '#ef4444';
+        radarAlertBanner.textContent = 'OBSTACLE DETECTED (<= 15CM) // FORWARD STOPPED';
+        radarAlertBanner.style.display = 'block';
+      } else if (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 60) {
+        radarBadge.textContent = 'SLOW (40%)';
+        radarBadge.className = 'radar-badge caution';
+        radarDot.style.background = '#f59e0b';
+        radarAlertBanner.textContent = 'COLLISION RANGE (< 60CM) // SPEED REDUCED TO 40%';
+        radarAlertBanner.style.display = 'block';
+      } else {
+        radarBadge.textContent = 'CLEAR';
+        radarBadge.className = 'radar-badge clear';
+        radarDot.style.background = '#10b981';
+        radarAlertBanner.style.display = 'none';
+      }
+
+      // 4. Boost safety synchronization: cancel boost if blocked or in collision range (< 60cm)
+      if ((isForwardBlocked || (autoBrakeEnabled && sensorHealthy && currentDistanceCm > 0 && currentDistanceCm < 60)) && isBoosting) {
+        isBoosting = false;
+        if (boostTimer) {
+          clearInterval(boostTimer);
+          boostTimer = null;
+        }
+      }
+      updateBoostButton();
+    }
+
+    // ==========================================
+    // GYRO TILT SENSING WITH 3-SECOND ARMING DELAY
     // ==========================================
     async function enableGyro() {
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -534,37 +848,98 @@
     }
 
     function handleOrientation(e) {
-      if (e.beta !== null) rawBeta = e.beta;
-      if (e.gamma !== null) rawGamma = e.gamma;
+      if (e.beta !== null && e.beta !== undefined) {
+        rawBeta = e.beta;
+        gyroEventCount++;
+      }
+      if (e.gamma !== null && e.gamma !== undefined) {
+        rawGamma = e.gamma;
+      }
+    }
+
+    function handleMotion(e) {
+      if (gyroEventCount > 10) return; // Prefer orientation if actively firing
+      const acc = e.accelerationIncludingGravity;
+      if (!acc || acc.x === null || acc.y === null || acc.z === null) return;
+      gyroEventCount++;
+      const x = acc.x;
+      const y = acc.y;
+      const z = acc.z;
+      // Convert accelerometer gravity vector to pitch and roll
+      const pitch = Math.atan2(y, Math.sqrt(x * x + z * z)) * (180.0 / Math.PI);
+      const roll = Math.atan2(x, Math.sqrt(y * y + z * z)) * (180.0 / Math.PI);
+      rawBeta = pitch;
+      rawGamma = roll;
     }
 
     gyroToggleBtn.addEventListener('click', async () => {
-      if (!gyroActive) {
+      if (!gyroActive && !gyroArming) {
         const ok = await enableGyro();
         if (ok) {
-          window.addEventListener('deviceorientation', handleOrientation);
-          zeroBeta = rawBeta;
-          zeroGamma = rawGamma;
-          gyroActive = true;
-          gyroToggleBtn.textContent = 'GYRO: ON';
+          // Listen to all available orientation and motion streams
+          window.addEventListener('deviceorientation', handleOrientation, true);
+          window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+          window.addEventListener('devicemotion', handleMotion, true);
+
+          gyroArming = true;
+          gyroActive = false;
+          gyroEventCount = 0;
           gyroToggleBtn.classList.add('active-gyro');
-          gyroCalBtn.style.display = 'inline-block';
+          gyroStatus.style.display = 'inline-flex';
+          gyroStatus.className = 'gyro-status-badge arming';
+
+          let countdown = 7;
+          gyroToggleBtn.textContent = `HOLD STEADY (${countdown}s)`;
+          gyroStatus.textContent = `GET READY: HOLD PHONE STEADY IN DRIVING POSITION (${countdown}s)`;
+
+          gyroArmTimer = setInterval(() => {
+            countdown--;
+            if (countdown > 0) {
+              gyroToggleBtn.textContent = `HOLD STEADY (${countdown}s)`;
+              gyroStatus.textContent = `GET READY: HOLD PHONE STEADY IN DRIVING POSITION (${countdown}s)`;
+            } else {
+              clearInterval(gyroArmTimer);
+              gyroArmTimer = null;
+              gyroArming = false;
+              gyroActive = true;
+              zeroBeta = rawBeta;
+              zeroGamma = rawGamma;
+              gyroToggleBtn.textContent = 'GYRO: ON';
+              gyroCalBtn.style.display = 'inline-block';
+              gyroStatus.className = 'gyro-status-badge';
+              gyroStatus.textContent = 'GYRO ARMED // READY! TILT TO DRIVE';
+            }
+          }, 1000);
         }
       } else {
-        window.removeEventListener('deviceorientation', handleOrientation);
+        if (gyroArmTimer) {
+          clearInterval(gyroArmTimer);
+          gyroArmTimer = null;
+        }
+        window.removeEventListener('deviceorientation', handleOrientation, true);
+        window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
+        window.removeEventListener('devicemotion', handleMotion, true);
+        gyroArming = false;
         gyroActive = false;
+        gyroEventCount = 0;
         gyroToggleBtn.textContent = 'GYRO: OFF';
         gyroToggleBtn.classList.remove('active-gyro');
         gyroCalBtn.style.display = 'none';
+        gyroStatus.style.display = 'none';
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send("GYRO_CAL");
         }
+        updateThrottleVisual(0.0);
+        updateSteeringVisual(0.0);
+        updateOutputs();
       }
     });
 
     gyroCalBtn.addEventListener('click', () => {
       zeroBeta = rawBeta;
       zeroGamma = rawGamma;
+      gyroCalBtn.textContent = 'ZEROED!';
+      setTimeout(() => { gyroCalBtn.textContent = 'CALIBRATE'; }, 1000);
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send("GYRO_CAL");
       }
@@ -712,12 +1087,12 @@
     // PWM OUTPUT CALCULATION (CORRECTED SIGNS)
     // ==========================================
     function calculatePwm() {
-      // Scale throttle: 1500 + forward offset (positive is forward)
+      // Scale throttle: 1500 - forward offset (1000us full forward, 2000us full reverse)
       const scale = maxThrottlePercent / 100.0;
-      const tUs = Math.round(1500 + (throttleRaw * 500 * scale));
+      const tUs = Math.round(1500 - (throttleRaw * 500 * scale));
 
-      // Scale steering: 1500 + right offset (positive is right)
-      let sUs = Math.round(1500 + (steeringRaw * 500) + steeringTrimUs);
+      // Scale steering: 1500 - right offset (1000us full right, 2000us full left)
+      let sUs = Math.round(1500 - (steeringRaw * 500) - steeringTrimUs);
       sUs = Math.max(1000, Math.min(2000, sUs));
 
       return { tUs, sUs };
@@ -726,12 +1101,18 @@
     function updateOutputs() {
       const { tUs, sUs } = calculatePwm();
       let tLabel = "NEUTRAL";
-      if (tUs > 1520) tLabel = "FWD";
-      else if (tUs < 1480) tLabel = "REV";
+      if (tUs < 1480) {
+        tLabel = isForwardBlocked ? "BLOCKED" : "FWD";
+      } else if (tUs > 1520) {
+        tLabel = "REV";
+      }
 
       let sLabel = "CENTER";
-      if (sUs > 1520) sLabel = "RIGHT";
-      else if (sUs < 1480) sLabel = "LEFT";
+      if (sUs < 1480) {
+        sLabel = "RIGHT";
+      } else if (sUs > 1520) {
+        sLabel = "LEFT";
+      }
 
       throttleReadout.textContent = `${tUs} µs (${tLabel})`;
       steeringReadout.textContent = `${sUs} µs (${sLabel})`;
@@ -748,17 +1129,30 @@
       ws.onopen = () => {
         statusBadge.className = 'badge connected';
         statusText.textContent = 'ONLINE (LOW-LATENCY)';
+        updateRadarUI();
       };
 
       ws.onclose = () => {
         statusBadge.className = 'badge disconnected';
         statusText.textContent = 'DISCONNECTED (FAILSAFE)';
+        receivedFirstTelemetry = false;
+        updateRadarUI();
         setTimeout(initWebSocket, 1000);
+      };
+
+      ws.onmessage = (event) => {
+        if (typeof event.data === 'string') {
+          const str = event.data.trim();
+          if (str.startsWith("U:")) {
+            handleUltrasonicTelemetry(str);
+          }
+        }
       };
 
       ws.onerror = () => {
         statusBadge.className = 'badge disconnected';
         statusText.textContent = 'ERROR';
+        updateRadarUI();
         ws.close();
       };
     }
@@ -770,13 +1164,32 @@
         const isUserTouching = (throttleTouchId !== null || steeringTouchId !== null || isMouseDownThrottle || isMouseDownSteering);
 
         if (gyroActive && !isUserTouching) {
-          // Send Gyro tilt data: tiltY (pitch) for throttle, tiltX (roll) for steering
-          // In landscape: beta corresponds to pitch tilt, gamma to roll tilt
           const tiltPitch = (rawBeta - zeroBeta);
           const tiltRoll = (rawGamma - zeroGamma);
           ws.send(`y:0.0,tx:${tiltRoll.toFixed(1)},ty:${tiltPitch.toFixed(1)}`);
-        } else {
-          // Send regular joystick PWM
+
+          // Live visual feedback on screen
+          if (gyroEventCount === 0) {
+            gyroStatus.textContent = 'NO SENSOR: CHECK PERMISSIONS';
+            gyroStatus.className = 'gyro-status-badge warn';
+          } else {
+            const pSign = tiltPitch > 0 ? '+' : '';
+            const rSign = tiltRoll > 0 ? '+' : '';
+            gyroStatus.textContent = `P:${pSign}${tiltPitch.toFixed(0)}° R:${rSign}${tiltRoll.toFixed(0)}°`;
+            gyroStatus.className = 'gyro-status-badge';
+          }
+
+          // Move the on-screen knobs visually with the phone tilt
+          const normThrottle = Math.max(-1.0, Math.min(1.0, tiltPitch / 30.0));
+          const normSteering = Math.max(-1.0, Math.min(1.0, tiltRoll / 30.0));
+          updateThrottleVisual(normThrottle);
+          updateSteeringVisual(normSteering);
+
+          const tUs = Math.round(1500 - (normThrottle * 500 * (maxThrottlePercent / 100.0)));
+          const sUs = Math.round(1500 - (normSteering * 500));
+          throttleReadout.textContent = `${tUs} µs (GYRO)`;
+          steeringReadout.textContent = `${sUs} µs (GYRO)`;
+        } else if (!isUserTouching && !gyroArming) {
           const { tUs, sUs } = calculatePwm();
           ws.send(`T:${tUs},S:${sUs}`);
         }
@@ -784,7 +1197,11 @@
     }, 40);
 
     updateOutputs();
-    window.addEventListener('DOMContentLoaded', initWebSocket);
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', initWebSocket);
+    } else {
+      initWebSocket();
+    }
   </script>
 </body>
 </html>
