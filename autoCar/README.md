@@ -6,13 +6,21 @@ NodeMCU ESP-12E RC Car Controller — Dual-axis joystick web portal with gyro ti
 
 ## Quick Start (Windows)
 
-```powershell
-.\flash.ps1   # Auto-detects board and uploads firmware
-```
+### Option 1: Over-The-Air (OTA) Web Portal (Recommended)
+No USB cables needed once flashed once:
+1. Compile the firmware binary:
+   ```powershell
+   .\build.ps1
+   ```
+   *(Builds to `build/autoCar.ino.bin`)*
+2. Power on the RC car and connect to its Wi-Fi AP (`RC_Car_AP` / `password123`).
+3. Open `http://192.168.4.1/update` (or click **OTA UPDATE** in the controller web portal).
+4. Select **Firmware**, choose `build/autoCar.ino.bin`, and click **Update**.
+5. The car automatically reboots into the new firmware.
 
-**Manual upload via Arduino CLI:**
-```bash
-arduino-cli upload -p [PORT] --fqbn esp8266:esp8266:nodemcuv2 .
+### Option 2: USB Cable Flashing
+```powershell
+.\flash.ps1   # Compiles and auto-detects USB serial board
 ```
 
 ---
@@ -34,6 +42,7 @@ arduino-cli upload -p [PORT] --fqbn esp8266:esp8266:nodemcuv2 .
 - **Gyro Tilt Control**: Optional autopilot using tilt/yaw data
 - **Boost Mode**: Temporary max throttle burst (5s on, 20s cooldown)
 - **Tuning Panel**: Speed limiter & steering trim
+- **OTA Web Updates**: In-browser firmware flashing via ElegantOTA (`/update`)
 
 ---
 

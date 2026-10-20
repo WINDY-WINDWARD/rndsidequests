@@ -28,20 +28,22 @@ A web-based RC car controller for NodeMCU ESP-12E with:
 - **Gyro tilt sensing** (optional autopilot mode)
 - **Boost mode** (temporary max throttle - 5s burst, 20s cooldown)
 - **Tuning panel** (speed limiter, steering trim)
+- **OTA firmware updates** (web upload via ElegantOTA at `/update`)
 
 ### Quick Start
 
-#### On Windows:
+#### Over-The-Air (OTA) Web Portal Update:
 ```powershell
-# Flash firmware to NodeMCU
-.\flash.ps1
+# Compile the firmware .bin file
+.\autoCar\build.ps1
 ```
+1. Connect to car Wi-Fi: **SSID:** `RC_Car_AP` | **Password:** `password123`
+2. Open **`http://192.168.4.1/update`** or click **OTA UPDATE** in the controller web portal.
+3. Upload `autoCar\build\autoCar.ino.bin` and click **Update** (device auto-reboots).
 
-The tool will auto-detect the board and upload. See `autoCar.ino` for pinout details.
-
-#### Manual Upload via Arduino CLI:
-```bash
-arduino-cli upload -p [PORT] --fqbn esp8266:esp8266:nodemcuv2 .
+#### Manual USB Upload via Automated Script:
+```powershell
+.\autoCar\flash.ps1
 ```
 
 ### Pin Configuration (NodeMCU ESP-12E)

@@ -3,6 +3,7 @@
 #include <WebSocketsServer.h>
 #include <Servo.h>
 #include <cmath>
+#include <ElegantOTA.h>
 
 // ==========================================
 // 1. HARDWARE PIN DEFINITIONS & CONSTANTS
@@ -397,6 +398,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         <button id="gyroCalBtn" class="btn-toggle" style="display:none;">CALIBRATE</button>
         <button id="boostBtn" class="btn-toggle">BOOST</button>
         <button id="tuneToggleBtn" class="btn-toggle">TUNING & TRIM</button>
+        <a id="otaBtn" href="/update" target="_blank" class="btn-toggle" style="text-decoration:none; display:inline-flex; align-items:center;">OTA UPDATE</a>
         <div id="statusBadge" class="badge disconnected">
           <span class="dot"></span>
           <span id="statusText">CONNECTING</span>
@@ -416,6 +418,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         <span id="trimVal" class="tune-val">0µs</span>
       </div>
       <button id="resetTrimBtn" class="btn-toggle">RESET TRIM</button>
+      <a id="otaTuningBtn" href="/update" target="_blank" class="btn-toggle" style="text-decoration:none; text-align:center; display:inline-flex; align-items:center; justify-content:center; color:#f59e0b; border-color:#f59e0b;">FIRMWARE OTA UPDATE</a>
     </div>
 
     <main>
@@ -846,7 +849,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     window.addEventListener('DOMContentLoaded', initWebSocket);
   </script>
 </body>
-</html>)rawliteral";
+</html>
+)rawliteral";
 
 // ==========================================
 // 4. GYRO SENSOR HELPER FUNCTIONS
@@ -870,6 +874,37 @@ int calculateGyroHeadingPWM(float degRoll) {
 // ==========================================
 // 5. HTTP & WEBSOCKET EVENT HANDLERS
 // ==========================================
+
+// ==========================================
+// 4. OTA (OVER-THE-AIR) UPDATE CALLBACKS
+// ==========================================
+void onOTAStart() {
+  failsafeActive = true;
+  isBoostingActive = false;
+  currentThrottleUs = PULSE_NEUTRAL_US;
+  currentSteeringUs = PULSE_NEUTRAL_US;
+  escThrottle.writeMicroseconds(PULSE_NEUTRAL_US);
+  steeringServo.writeMicroseconds(PULSE_NEUTRAL_US);
+  Serial.println("[OTA] Firmware update initiated. Motors and steering locked neutral.");
+}
+
+void onOTAEnd(bool success) {
+  if (success) {
+    Serial.println("[OTA] Firmware update succeeded! Device auto-rebooting...");
+  } else {
+    Serial.println("[OTA] Firmware update failed!");
+  }
+}
+
+void onOTAProgress(size_t current, size_t final) {
+  static unsigned long lastProgressLog = 0;
+  if (millis() - lastProgressLog > 1000) {
+    lastProgressLog = millis();
+    float pct = (final > 0) ? ((float)current / (float)final * 100.0f) : 0.0f;
+    Serial.printf("[OTA] Progress: %u / %u bytes (%.1f%%)\n", current, final, pct);
+  }
+}
+
 void handleRoot() {
   server.send_P(200, "text/html", INDEX_HTML);
 }
@@ -1000,15 +1035,25 @@ void setup() {
   } else {
     Serial.println("[WIFI] SoftAP initialization FAILED!");
   }
+  // Setup ElegantOTA
+  ElegantOTA.begin(&server);
+  ElegantOTA.onStart(onOTAStart);
+  ElegantOTA.onEnd(onOTAEnd);
+  ElegantOTA.onProgress(onOTAProgress);
 
   // Setup Web Server
   server.on("/", HTTP_GET, handleRoot);
+  server.on("/update/", HTTP_GET, []() {
+    server.sendHeader("Location", "/update");
+    server.send(302, "text/plain", "");
+  });
   server.onNotFound([]() {
     server.sendHeader("Location", "/");
     server.send(302, "text/plain", "");
   });
   server.begin();
   Serial.println("[HTTP] Web Server started on port 80");
+  Serial.println("[OTA] ElegantOTA initialized at /update");
 
   // Setup WebSocket Server
   webSocket.begin();
@@ -1024,6 +1069,7 @@ void setup() {
 void loop() {
   webSocket.loop();
   server.handleClient();
+  ElegantOTA.loop();
 
   unsigned long now = millis();
 
