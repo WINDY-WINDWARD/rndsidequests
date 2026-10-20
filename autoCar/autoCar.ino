@@ -881,7 +881,9 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       failsafeActive = true;
       isBoostingActive = false; // Immediately cancel active boost
       currentThrottleUs = PULSE_NEUTRAL_US;
+      currentSteeringUs = PULSE_NEUTRAL_US;
       escThrottle.writeMicroseconds(PULSE_NEUTRAL_US);
+      steeringServo.writeMicroseconds(PULSE_NEUTRAL_US);
       break;
 
     case WStype_CONNECTED: {
@@ -905,9 +907,11 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
         currentThrottleUs = calculateGyroPWM(tiltY);
         currentSteeringUs = calculateGyroHeadingPWM(yawDeg + tiltX);
 
-        if (!isBoostingActive && !failsafeActive) {
-          escThrottle.writeMicroseconds(currentThrottleUs);
+        if (!failsafeActive) {
           steeringServo.writeMicroseconds(currentSteeringUs);
+          if (!isBoostingActive) {
+            escThrottle.writeMicroseconds(currentThrottleUs);
+          }
         }
         lastPacketTime = now;
         failsafeActive = false;
@@ -949,9 +953,11 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
         currentThrottleUs = constrain(parsedThrottle, PULSE_MIN_US, PULSE_MAX_US);
         currentSteeringUs = constrain(parsedSteering, PULSE_MIN_US, PULSE_MAX_US);
 
-        if (!isBoostingActive && !failsafeActive) {
-          escThrottle.writeMicroseconds(currentThrottleUs);
+        if (!failsafeActive) {
           steeringServo.writeMicroseconds(currentSteeringUs);
+          if (!isBoostingActive) {
+            escThrottle.writeMicroseconds(currentThrottleUs);
+          }
         }
         lastPacketTime = now;
         failsafeActive = false;
@@ -1026,7 +1032,9 @@ void loop() {
     failsafeActive = true;
     isBoostingActive = false; // Always cancel boost immediately!
     currentThrottleUs = PULSE_NEUTRAL_US;
+    currentSteeringUs = PULSE_NEUTRAL_US;
     escThrottle.writeMicroseconds(PULSE_NEUTRAL_US);
+    steeringServo.writeMicroseconds(PULSE_NEUTRAL_US);
     Serial.println("[FAILSAFE] WATCHDOG TRIGGERED! Throttle snapped to 1500us neutral.");
   }
 
