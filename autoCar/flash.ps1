@@ -1,4 +1,9 @@
-$cli = "C:\projects\rndsidequests\tools\arduino-cli.exe"
+$sketchDir = $PSScriptRoot
+$cli = Join-Path $PSScriptRoot "..\tools\arduino-cli.exe"
+if (-not (Test-Path $cli)) {
+    $cli = "C:\projects\rndsidequests\tools\arduino-cli.exe"
+}
+
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  AUTOCAR FIRMWARE FLASH TOOL             " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
@@ -10,7 +15,7 @@ if (-not $port) {
 }
 
 Write-Host "[+] Found board on $port. Uploading firmware..." -ForegroundColor Green
-& $cli upload -p $port --fqbn esp8266:esp8266:nodemcuv2 "C:\projects\rndsidequests\autoCar"
+& $cli upload -p $port --fqbn esp8266:esp8266:nodemcuv2 "$sketchDir"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Firmware successfully uploaded!" -ForegroundColor Green

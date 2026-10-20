@@ -1,2 +1,7 @@
 .worktrees/
-
+tools/arduino-cli.exe
+tools/arduino-cli.zip
+tools/cp210x/
+tools/cp210x_driver/
+*.bin
+*.elf

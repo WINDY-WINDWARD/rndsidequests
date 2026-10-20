@@ -39,6 +39,7 @@
       justify-content: space-between;
       padding: 0 16px;
       z-index: 20;
+      gap: 8px;
     }
     .brand {
       display: flex;
@@ -48,12 +49,13 @@
       font-weight: 700;
       letter-spacing: 1px;
       color: #f59e0b;
+      white-space: nowrap;
     }
-    .status-group {
+    .actions-group {
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-size: 12px;
+      gap: 8px;
+      flex-wrap: nowrap;
     }
     .badge {
       display: inline-flex;
@@ -67,6 +69,7 @@
       letter-spacing: 0.5px;
       background: #1e293b;
       color: #94a3b8;
+      white-space: nowrap;
     }
     .badge.connected {
       background: rgba(16, 185, 129, 0.15);
@@ -88,48 +91,66 @@
       background: #1e2533;
       border: 1px solid #334155;
       color: #cbd5e1;
-      padding: 5px 12px;
+      padding: 5px 10px;
       border-radius: 6px;
       font-size: 11px;
       font-weight: 600;
       cursor: pointer;
+      white-space: nowrap;
+      transition: background-color 0.2s, border-color 0.2s, color 0.2s;
     }
     .btn-toggle:active {
       background: #334155;
     }
-
-    /* --- BOOST MODE STYLING ADDITIONS --- */
     #boostBtn {
-        background-color: #ef4444 !important; 
-        border-color: #dc2626 !important;
-        transition: background-color 0.3s, border-color 0.3s;
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+      color: #fca5a5;
     }
-
+    #boostBtn.active-boost {
+      background: #ef4444;
+      color: #ffffff;
+      animation: pulse-red 0.6s infinite alternate;
+    }
+    #boostBtn.cooldown {
+      background: #1e2533;
+      border-color: #475569;
+      color: #64748b;
+      cursor: not-allowed;
+    }
+    #gyroToggleBtn.active-gyro {
+      background: rgba(6, 182, 212, 0.2);
+      border-color: #06b6d4;
+      color: #67e8f9;
+    }
+    @keyframes pulse-red {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
+    }
     /* Trim & Tuning Drawer */
     #tuning-panel {
       display: none;
       background: #141923;
       border-bottom: 1px solid #232c3d;
-      padding: 10px 20px;
-      display: flex;
-      gap: 24px;
+      padding: 10px 16px;
+      gap: 20px;
       justify-content: center;
       align-items: center;
       font-size: 12px;
       z-index: 15;
+      flex-wrap: wrap;
     }
     .tune-item {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
     .tune-item label {
       color: #94a3b8;
       font-weight: 600;
-      min-width: 90px;
     }
     .tune-item input[type="range"] {
-      width: 140px;
+      width: 120px;
       accent-color: #f59e0b;
       cursor: pointer;
     }
@@ -139,7 +160,6 @@
       color: #f8fafc;
       font-weight: 700;
     }
-
     /* Main Control Arena */
     main {
       flex: 1;
@@ -260,6 +280,7 @@
       transform: translate(-50%, -50%);
       box-shadow: 0 4px 12px rgba(0,0,0,0.5);
       pointer-events: none;
+      transition: border-color 0.1s;
     }
     .horizontal-knob::after {
       content: '';
@@ -272,304 +293,496 @@
       left: 50%;
       transform: translate(-50%, -50%);
     }
-
+    .active-knob {
+      border-color: #f59e0b !important;
+    }
+    .landscape-hint {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #090b10;
+      z-index: 100;
+      color: #f59e0b;
+      font-size: 14px;
+      font-weight: 700;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+    }
+    @media (orientation: portrait) {
+      .landscape-hint {
+        display: flex;
+      }
+    }
   </style>
 </head>
-<body id="app">
+<body>
   <div class="landscape-hint">
     ↺ ROTATE YOUR DEVICE TO LANDSCAPE FOR DUAL-THUMB RC CONTROLS
   </div>
 
-  <header>
-    <div class="brand">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="2" y="7" width="20" height="13" rx="2"></rect>
-        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-      </svg>
-      <span>RC // NODEMCU ESP-12E</span>
-    </div>
-    <div class="status-group">
+  <div id="app">
+    <header>
+      <div class="brand">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="7" width="20" height="13" rx="2"></rect>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+        </svg>
+        <span>RC // NODEMCU ESP-12E</span>
+      </div>
+      <div class="actions-group">
+        <button id="gyroToggleBtn" class="btn-toggle">GYRO: OFF</button>
+        <button id="gyroCalBtn" class="btn-toggle" style="display:none;">CALIBRATE</button>
+        <button id="boostBtn" class="btn-toggle">BOOST</button>
+        <button id="tuneToggleBtn" class="btn-toggle">TUNING & TRIM</button>
         <div id="statusBadge" class="badge disconnected">
           <span class="dot"></span>
           <span id="statusText">CONNECTING</span>
         </div>
-        <button id="tuneToggleBtn" class="btn-toggle">TUNING & TRIM</button>
-        <!-- BOOST MODE OVERRIDE -->
-        <button id="boostBtn" class="btn-toggle" style="background-color: #ef4444; border-color: #dc2626;">BOOST (LOCKED)</button>
-    </div>
-  </header>
+      </div>
+    </header>
 
-  <div id="tuning-panel">
-    <div class="tune-item">
-      <label for="speedLimit">MAX THROTTLE:</label>
-      <input type="range" id="speedLimit" min="20" max="100" value="65">
-      <span id="speedVal" class="tune-val">65%</span>
+    <div id="tuning-panel">
+      <div class="tune-item">
+        <label for="speedLimit">MAX THROTTLE:</label>
+        <input type="range" id="speedLimit" min="20" max="100" value="65">
+        <span id="speedVal" class="tune-val">65%</span>
+      </div>
+      <div class="tune-item">
+        <label for="steerTrim">STEER TRIM:</label>
+        <input type="range" id="steerTrim" min="-100" max="100" value="0">
+        <span id="trimVal" class="tune-val">0µs</span>
+      </div>
+      <button id="resetTrimBtn" class="btn-toggle">RESET TRIM</button>
     </div>
-    <div class="tune-item">
-      <label for="steerTrim">STEER TRIM:</label>
-      <input type="range" id="steerTrim" min="-100" max="100" value="0">
-      <span id="trimVal" class="tune-val">0µs</span>
-    </div>
-    <button id="resetTrimBtn" class="btn-toggle">RESET TRIM</button>
+
+    <main>
+      <!-- LEFT THUMB: THROTTLE -->
+      <section class="control-zone" id="throttleZone">
+        <div class="zone-label">▲ FORWARD / ▼ REVERSE</div>
+        <div class="vertical-track" id="throttleTrack">
+          <div class="track-center-line"></div>
+          <div class="vertical-knob" id="throttleKnob"></div>
+        </div>
+        <div class="readout" id="throttleReadout">1500 µs (NEUTRAL)</div>
+      </section>
+
+      <div class="divider"></div>
+
+      <!-- RIGHT THUMB: STEERING -->
+      <section class="control-zone" id="steeringZone">
+        <div class="zone-label">◄ STEERING ►</div>
+        <div class="horizontal-track" id="steeringTrack">
+          <div class="track-center-vert-line"></div>
+          <div class="horizontal-knob" id="steeringKnob"></div>
+        </div>
+        <div class="readout" id="steeringReadout">1500 µs (CENTER)</div>
+      </section>
+    </main>
   </div>
 
-  <main>
-    <!-- LEFT THUMB: THROTTLE -->
-    <section class="control-zone" id="throttleZone">
-      <div class="zone-label">▲ FORWARD / ▼ REVERSE</div >
-      <div class="vertical-track" id="throttleTrack">
-        <div class="track-center-line"></div>
-        <div class="vertical-knob" id="throttleKnob"></div>
-      </div>
-      <div class="readout" id="throttleReadout">1500 µs (NEUTRAL)</div >
-    </section>
-
-    <div class="divider"></div>
-
-    <!-- RIGHT THUMB: STEERING -->
-    <section class="control-zone" id="steeringZone">
-      <div class="zone-label">◄ STEERING ►</div >
-      <div class="horizontal-track" id="steeringTrack">
-        <div class="track-center-vert-line"></div>
-        <div class="horizontal-knob" id="steeringKnob"></div>
-      </div>
-      <div class="readout" id="steeringReadout">1500 µs (CENTER)</div >
-    </section>
-  </main>
-
   <script>
-// State
-let ws = null;
-let throttleRaw = 0.0; // -1.0 (full reverse) to +1.0 (full forward)
-let steeringRaw = 0.0; // -1.0 (full left) to +1.0 (full right)
+    // ==========================================
+    // STATE & VARIABLES
+    // ==========================================
+    let ws = null;
+    let throttleRaw = 0.0; // -1.0 (reverse) to +1.0 (forward)
+    let steeringRaw = 0.0; // -1.0 (left) to +1.0 (right)
 
-let throttleTouchId = null;
-let steeringTouchId = null;
+    let throttleTouchId = null;
+    let steeringTouchId = null;
 
-// --- BOOST MODE STATE VARIABLES & CONSTANTS ---
-const BOOST_LIMIT_PERCENT = 65; // Default limit: 65% of max power
-let lastBoostTime = Date.now();  // Time of the last successful boost activation (for cooldown)
-let isBoostingActiveClient = false;// Mirror of server state for UI control
+    let maxThrottlePercent = 65;
+    let steeringTrimUs = 0;
 
-// --- UI ELEMENTS & INITIALIZATION ---
-const statusBadge = document.getElementById('statusBadge');
-const statusText = document.getElementById('statusText');
-const throttleTrack = document.getElementById('throttleTrack');
-const throttleKnob = document.getElementById('throttleKnob');
-const throttleReadout = document.getElementById('throttleReadout');
-const steeringTrack = document.getElementById('steeringTrack');
-const steeringKnob = document.getElementById('steeringKnob');
-const steeringReadout = document.getElementById('steeringReadout');
+    // Boost Mode State
+    const BOOST_DURATION_MS = 5000;
+    const COOLDOWN_DURATION_MS = 20000;
+    let isBoosting = false;
+    let lastBoostTime = 0;
+    let boostTimer = null;
 
-const tuneToggleBtn = document.getElementById('tuneToggleBtn');
-const boostButton = document.getElementById('boostBtn'); // Get the new button element
-const tuningPanel = document.getElementById('tuning-panel');
-const speedLimitInput = document.getElementById('speedLimit');
-const speedVal = document.getElementById('speedVal');
-const steerTrimInput = document.getElementById('steerTrim');
-const trimVal = document.getElementById('trimVal');
-const resetTrimBtn = document.getElementById('resetTrimBtn');
+    // Gyro Mode State
+    let gyroActive = false;
+    let rawBeta = 0;   // Forward / backward tilt
+    let rawGamma = 0;  // Left / right tilt
+    let zeroBeta = 0;
+    let zeroGamma = 0;
 
+    // DOM Elements
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+    const throttleTrack = document.getElementById('throttleTrack');
+    const throttleKnob = document.getElementById('throttleKnob');
+    const throttleReadout = document.getElementById('throttleReadout');
+    const steeringTrack = document.getElementById('steeringTrack');
+    const steeringKnob = document.getElementById('steeringKnob');
+    const steeringReadout = document.getElementById('steeringReadout');
 
-// --- UI SETUP AND EVENT LISTENERS ---
+    const tuneToggleBtn = document.getElementById('tuneToggleBtn');
+    const tuningPanel = document.getElementById('tuning-panel');
+    const speedLimitInput = document.getElementById('speedLimit');
+    const speedVal = document.getElementById('speedVal');
+    const steerTrimInput = document.getElementById('steerTrim');
+    const trimVal = document.getElementById('trimVal');
+    const resetTrimBtn = document.getElementById('resetTrimBtn');
 
-// 1. Toggle Tuning Panel
-tuneToggleBtn.addEventListener('click', () => {
-  tuningPanel.style.display = (tuningPanel.style.display === 'flex') ? 'none' : 'flex';
-});
+    const boostBtn = document.getElementById('boostBtn');
+    const gyroToggleBtn = document.getElementById('gyroToggleBtn');
+    const gyroCalBtn = document.getElementById('gyroCalBtn');
 
-speedLimitInput.addEventListener('input', (e) => {
-  const val = parseInt(e.target.value);
-  if (val < 10) speedLimitInput.setAttribute('min', '10'); // Safety cap
-  maxThrottlePercent = val;
-  speedVal.textContent = maxThrottlePercent + '%';
-});
+    // ==========================================
+    // UI CONTROLS & TUNING
+    // ==========================================
+    tuneToggleBtn.addEventListener('click', () => {
+      tuningPanel.style.display = (tuningPanel.style.display === 'flex') ? 'none' : 'flex';
+    });
 
-steerTrimInput.addEventListener('input', (e) => {
-  const value = parseInt(e.target.value);
-  steeringTrimUs = value;
-  trimVal.textContent = (steeringTrimUs > 0 ? '+' : '') + steeringTrimUs + 'µs';
-  updateOutputs();
-});
+    speedLimitInput.addEventListener('input', (e) => {
+      maxThrottlePercent = parseInt(e.target.value);
+      speedVal.textContent = maxThrottlePercent + '%';
+      updateOutputs();
+    });
 
-resetTrimBtn.addEventListener('click', () => {
-  steerTrimInput.value = 0;
-  steeringTrimUs = 0;
-  trimVal.textContent = '0µs';
-  updateOutputs();
-});
+    steerTrimInput.addEventListener('input', (e) => {
+      steeringTrimUs = parseInt(e.target.value);
+      trimVal.textContent = (steeringTrimUs > 0 ? '+' : '') + steeringTrimUs + 'µs';
+      updateOutputs();
+    });
 
+    resetTrimBtn.addEventListener('click', () => {
+      steerTrimInput.value = 0;
+      steeringTrimUs = 0;
+      trimVal.textContent = '0µs';
+      updateOutputs();
+    });
 
-// 2. BOOST BUTTON LOGIC (New)
-let cooldownTimeRemaining = 0; // In milliseconds
-let boostTimerInterval = null;
+    // ==========================================
+    // BOOST MODE
+    // ==========================================
+    function updateBoostButton() {
+      const now = Date.now();
+      const elapsedSinceBoost = now - lastBoostTime;
 
-function updateBoostUI() {
-    const now = Date.now();
-    const timeSinceLastBoost = Math.max(0, now - lastBoostTime);
-
-    if (isBoostingActiveClient) {
-        boostButton.textContent = `BOOSTING (${Math.ceil((boostStartTime + 5000 - now) / 1000)}s)`;
-        boostButton.disabled = true;
-        boostButton.style.opacity = '0.8';
-    } else if (cooldownTimeRemaining > 0) {
-        boostButton.textContent = `COOLDOWN (${Math.ceil(cooldownTimeRemaining / 1000)}s)`;
-        boostButton.disabled = true;
-        boostButton.style.opacity = '0.8';
-    } else {
-        // Ready state
-        boostButton.textContent = "BOOST";
-        boostButton.disabled = false;
-        boostButton.style.opacity = '1.0';
-    }
-}
-
-function startBoostCooldown() {
-  const cooldownSeconds = 20;
-  cooldownTimeRemaining = cooldownSeconds * 1000;
-  updateBoostUI();
-
-  if (window.cooldownInterval) clearInterval(window.cooldownInterval);
-  window.cooldownInterval = setInterval(() => {
-    let remaining = cooldownTimeRemaining - 1000;
-    if (remaining < 0) {
-      clearInterval(window.cooldownInterval);
-      cooldownTimeRemaining = 0;
-      updateBoostUI(); // Button is now ready
-    } else {
-      cooldownTimeRemaining = remaining;
-      updateBoostUI();
-    }
-  }, 1000);
-}
-
-async function handleBoostClick() {
-    if (!window.ws || window.ws.readyState !== WebSocket.OPEN) {
-        alert("Not connected to the car.");
-        return;
-    }
-    
-    // Check UI state for readiness before sending command
-    const btnText = boostButton.textContent.toUpperCase();
-    if (btnText.includes("COOLDOWN") || btnText.includes("BOOSTING")) {
-         alert(`Boost unavailable: ${btnText}. Wait until the button reads BOOST.`);
-         return;
+      if (isBoosting) {
+        const remaining = Math.max(0, Math.ceil((BOOST_DURATION_MS - (now - boostStartTime)) / 1000));
+        boostBtn.textContent = `BOOSTING (${remaining}s)`;
+        boostBtn.className = 'btn-toggle active-boost';
+        boostBtn.disabled = true;
+      } else if (elapsedSinceBoost < COOLDOWN_DURATION_MS) {
+        const remaining = Math.max(1, Math.ceil((COOLDOWN_DURATION_MS - elapsedSinceBoost) / 1000));
+        boostBtn.textContent = `COOLDOWN (${remaining}s)`;
+        boostBtn.className = 'btn-toggle cooldown';
+        boostBtn.disabled = true;
+      } else {
+        boostBtn.textContent = 'BOOST';
+        boostBtn.className = 'btn-toggle';
+        boostBtn.disabled = false;
+      }
     }
 
-    // Request Boost via WebSocket
-    window.ws.send("BOOST_ON"); 
-    isBoostingActiveClient = true; // Optimistically set client state immediately
-    boostStartTime = Date.now(); 
-    updateBoostUI();
-    startBoostCooldown(); // Start cooldown timer on request, regardless of server response.
+    let boostStartTime = 0;
+    boostBtn.addEventListener('click', () => {
+      const now = Date.now();
+      if (isBoosting || (now - lastBoostTime < COOLDOWN_DURATION_MS)) return;
 
-}
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send("BOOST_ON");
+        isBoosting = true;
+        boostStartTime = now;
+        lastBoostTime = now;
+        updateBoostButton();
 
-
-// 3. TOUCH/MOUSE CONTROLLER LOGIC (No functional change needed here)
-const TRACK_V_TRAVEL = 160;
-const TRACK_H_TRAVEL = 170;
-
-function updateThrottleVisual(normVal) {
-  const px = -(normVal * (TRACK_V_TRAVEL / 2));
-  throttleKnob.style.transform = `translate(-50%, calc(-50% + ${px}px))`;
-}
-
-function updateSteeringVisual(normVal) {
-  const px = normVal * (TRACK_H_TRAVEL / 2);
-  steeringKnob.style.transform = `translate(calc(-50% + ${px}px), -50%)`;
-}
-
-// Touch/Mouse Event Listeners (kept identical to original logic)
-throttleTrack.addEventListener('touchstart', (e) => { ... });
-steeringTrack.addEventListener('touchstart', (e) => { ... });
-window.addEventListener('touchmove', (e) => { ... });
-function releaseTouch(id) { ... }
-window.addEventListener('touchend', (e) => { ... });
-window.addEventListener('touchcancel', (e) => { ... });
-
-function handleThrottleMove(clientY) { /* ... implementation unchanged ... */ }
-function handleSteeringMove(clientX) { /* ... implementation unchanged ... */ }
-
-
-// 4. CORE CALCULATIONS & OUTPUTS (Updated)
-function calculatePwm() {
-  // THROTTLE LIMIT APPLIED HERE: Range is scaled down by the boost limit percentage factor.
-  const scaleFactor = BOOST_LIMIT_PERCENT / 100.0; 
-  const tUs = Math.round(1500 - (throttleRaw * 500 * scaleFactor));
-  
-  // Steering with trim offset: clamped strictly between 1000 and 2000
-  let sUs = Math.round(1500 - (steeringRaw * 500) + steeringTrimUs);
-  sUs = Math.max(1000, Math.min(2000, sUs));
-
-  return { tUs, sUs };
-}
-
-
-// 5. WEBSOCKET AND INITIALIZATION
-function initWebSocket() {
-  const host = window.location.hostname || "192.168.4.1";
-  const wsUrl = `ws://${host}:81/`;
-  ws = new WebSocket(wsUrl);
-
-  // Original handlers... (onopen, onclose, onerror)
-
-  // CRITICAL: Update the message handler to process commands
-  const originalOnMessage = ws.onmessage;
-  ws.onmessage = (event) => {
-      handleIncomingMessage(event.data); // Use new function wrapper
-  };
-}
-
-function handleIncomingMessage(data) {
-    // This encapsulates all state machine logic: command processing, telemetry reading, etc.
-    console.log("Received:", data);
-    if (data === "BOOST_ON") {
-        isBoostingActiveClient = true; // Assume success if server sends it
-        boostStartTime = Date.now();
-        updateBoostUI();
-
-    } else if (data === "BOOST_OFF") {
-        isBoostingActiveClient = false; 
-        clearTimeout(boostTimerInterval);
-        updateBoostUI();
-    } 
-    else if (data.startsWith("T:") && data.includes(",S:")) {
-         // Process telemetry packet for normal control updates
-         const match = data.match(/T:([\d]+),S:([\d]+)/);
-         if (match) {
-            let tUs = parseInt(match[1]);
-            let sUs = parseInt(match[2]);
-
-            // If we are NOT boosting and not in failsafe, update raw inputs for visual/state consistency.
-            if (!isBoostingActiveClient && !failsafeActive) {
-                currentThrottleUs = Math.min(Math.max(tUs, 1000), 2000);
-                currentSteeringUs = Math.min(Math.max(sUs, 1000), 2000);
+        if (boostTimer) clearInterval(boostTimer);
+        boostTimer = setInterval(() => {
+          const currentTime = Date.now();
+          if (isBoosting && (currentTime - boostStartTime >= BOOST_DURATION_MS)) {
+            isBoosting = false;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send("BOOST_OFF");
             }
-         }
+          }
+          updateBoostButton();
+          if (!isBoosting && (currentTime - lastBoostTime >= COOLDOWN_DURATION_MS)) {
+            clearInterval(boostTimer);
+            boostTimer = null;
+          }
+        }, 500);
+      }
+    });
+
+    // ==========================================
+    // GYRO TILT SENSING
+    // ==========================================
+    async function enableGyro() {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+          const permission = await DeviceOrientationEvent.requestPermission();
+          if (permission !== 'granted') {
+            alert('Device orientation permission denied.');
+            return false;
+          }
+        } catch (err) {
+          console.error(err);
+          return false;
+        }
+      }
+      return true;
     }
-}
 
-// Global Interval: Send Telemetry Heartbeat (Every 40ms)
-setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    const { tUs, sUs } = calculatePwm();
-    let payload;
-
-    // If boosting is active client-side, we send the raw T/S values calculated by JS (which are already maxed out or limited).
-    if (isBoostingActiveClient && boostButton.disabled === false) { // Check if UI indicates ready to transmit
-         payload = `T:${tUs},S:${sUs}`; 
-    } else {
-        // Normal telemetry send
-        payload = `T:${tUs},S:${sUs}`;
+    function handleOrientation(e) {
+      if (e.beta !== null) rawBeta = e.beta;
+      if (e.gamma !== null) rawGamma = e.gamma;
     }
-    ws.send(payload);
-  }
-}, 40);
 
-window.addEventListener('DOMContentLoaded', () => {
-    initWebSocket();
+    gyroToggleBtn.addEventListener('click', async () => {
+      if (!gyroActive) {
+        const ok = await enableGyro();
+        if (ok) {
+          window.addEventListener('deviceorientation', handleOrientation);
+          zeroBeta = rawBeta;
+          zeroGamma = rawGamma;
+          gyroActive = true;
+          gyroToggleBtn.textContent = 'GYRO: ON';
+          gyroToggleBtn.classList.add('active-gyro');
+          gyroCalBtn.style.display = 'inline-block';
+        }
+      } else {
+        window.removeEventListener('deviceorientation', handleOrientation);
+        gyroActive = false;
+        gyroToggleBtn.textContent = 'GYRO: OFF';
+        gyroToggleBtn.classList.remove('active-gyro');
+        gyroCalBtn.style.display = 'none';
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send("GYRO_CAL");
+        }
+      }
+    });
+
+    gyroCalBtn.addEventListener('click', () => {
+      zeroBeta = rawBeta;
+      zeroGamma = rawGamma;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send("GYRO_CAL");
+      }
+    });
+
+    // ==========================================
+    // JOYSTICK TOUCH & MOUSE CONTROLS
+    // ==========================================
+    const TRACK_V_TRAVEL = 160;
+    const TRACK_H_TRAVEL = 170;
+
+    function updateThrottleVisual(normVal) {
+      const px = -(normVal * (TRACK_V_TRAVEL / 2));
+      throttleKnob.style.transform = `translate(-50%, calc(-50% + ${px}px))`;
+    }
+
+    function updateSteeringVisual(normVal) {
+      const px = normVal * (TRACK_H_TRAVEL / 2);
+      steeringKnob.style.transform = `translate(calc(-50% + ${px}px), -50%)`;
+    }
+
+    throttleTrack.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (throttleTouchId === null) {
+        const touch = e.changedTouches[0];
+        throttleTouchId = touch.identifier;
+        throttleKnob.classList.add('active-knob');
+        handleThrottleMove(touch.clientY);
+      }
+    }, { passive: false });
+
+    steeringTrack.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (steeringTouchId === null) {
+        const touch = e.changedTouches[0];
+        steeringTouchId = touch.identifier;
+        steeringKnob.classList.add('active-knob');
+        handleSteeringMove(touch.clientX);
+      }
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        if (touch.identifier === throttleTouchId) {
+          handleThrottleMove(touch.clientY);
+        } else if (touch.identifier === steeringTouchId) {
+          handleSteeringMove(touch.clientX);
+        }
+      }
+    }, { passive: false });
+
+    function releaseTouch(id) {
+      if (id === throttleTouchId) {
+        throttleTouchId = null;
+        throttleRaw = 0.0;
+        throttleKnob.classList.remove('active-knob');
+        updateThrottleVisual(0.0);
+        updateOutputs();
+      }
+      if (id === steeringTouchId) {
+        steeringTouchId = null;
+        steeringRaw = 0.0;
+        steeringKnob.classList.remove('active-knob');
+        updateSteeringVisual(0.0);
+        updateOutputs();
+      }
+    }
+
+    window.addEventListener('touchend', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        releaseTouch(e.changedTouches[i].identifier);
+      }
+    });
+
+    window.addEventListener('touchcancel', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        releaseTouch(e.changedTouches[i].identifier);
+      }
+    });
+
+    function handleThrottleMove(clientY) {
+      const rect = throttleTrack.getBoundingClientRect();
+      const centerY = rect.top + rect.height / 2;
+      const deltaY = clientY - centerY;
+      let norm = -(deltaY / (TRACK_V_TRAVEL / 2));
+      norm = Math.max(-1.0, Math.min(1.0, norm));
+      if (Math.abs(norm) < 0.04) norm = 0.0;
+      throttleRaw = norm;
+      updateThrottleVisual(norm);
+      updateOutputs();
+    }
+
+    function handleSteeringMove(clientX) {
+      const rect = steeringTrack.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const deltaX = clientX - centerX;
+      let norm = deltaX / (TRACK_H_TRAVEL / 2);
+      norm = Math.max(-1.0, Math.min(1.0, norm));
+      if (Math.abs(norm) < 0.04) norm = 0.0;
+      steeringRaw = norm;
+      updateSteeringVisual(norm);
+      updateOutputs();
+    }
+
+    // Mouse Fallback
+    let isMouseDownThrottle = false;
+    let isMouseDownSteering = false;
+
+    throttleTrack.addEventListener('mousedown', (e) => {
+      isMouseDownThrottle = true;
+      throttleKnob.classList.add('active-knob');
+      handleThrottleMove(e.clientY);
+    });
+
+    steeringTrack.addEventListener('mousedown', (e) => {
+      isMouseDownSteering = true;
+      steeringKnob.classList.add('active-knob');
+      handleSteeringMove(e.clientX);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isMouseDownThrottle) handleThrottleMove(e.clientY);
+      if (isMouseDownSteering) handleSteeringMove(e.clientX);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isMouseDownThrottle) {
+        isMouseDownThrottle = false;
+        throttleRaw = 0.0;
+        throttleKnob.classList.remove('active-knob');
+        updateThrottleVisual(0.0);
+        updateOutputs();
+      }
+      if (isMouseDownSteering) {
+        isMouseDownSteering = false;
+        steeringRaw = 0.0;
+        steeringKnob.classList.remove('active-knob');
+        updateSteeringVisual(0.0);
+        updateOutputs();
+      }
+    });
+
+    // ==========================================
+    // PWM OUTPUT CALCULATION (CORRECTED SIGNS)
+    // ==========================================
+    function calculatePwm() {
+      // Scale throttle: 1500 + forward offset (positive is forward)
+      const scale = maxThrottlePercent / 100.0;
+      const tUs = Math.round(1500 + (throttleRaw * 500 * scale));
+
+      // Scale steering: 1500 + right offset (positive is right)
+      let sUs = Math.round(1500 + (steeringRaw * 500) + steeringTrimUs);
+      sUs = Math.max(1000, Math.min(2000, sUs));
+
+      return { tUs, sUs };
+    }
+
+    function updateOutputs() {
+      const { tUs, sUs } = calculatePwm();
+      let tLabel = "NEUTRAL";
+      if (tUs > 1520) tLabel = "FWD";
+      else if (tUs < 1480) tLabel = "REV";
+
+      let sLabel = "CENTER";
+      if (sUs > 1520) sLabel = "RIGHT";
+      else if (sUs < 1480) sLabel = "LEFT";
+
+      throttleReadout.textContent = `${tUs} µs (${tLabel})`;
+      steeringReadout.textContent = `${sUs} µs (${sLabel})`;
+    }
+
+    // ==========================================
+    // WEBSOCKET TELEMETRY LOOP
+    // ==========================================
+    function initWebSocket() {
+      const host = window.location.hostname || "192.168.4.1";
+      const wsUrl = `ws://${host}:81/`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        statusBadge.className = 'badge connected';
+        statusText.textContent = 'ONLINE (LOW-LATENCY)';
+      };
+
+      ws.onclose = () => {
+        statusBadge.className = 'badge disconnected';
+        statusText.textContent = 'DISCONNECTED (FAILSAFE)';
+        setTimeout(initWebSocket, 1000);
+      };
+
+      ws.onerror = () => {
+        statusBadge.className = 'badge disconnected';
+        statusText.textContent = 'ERROR';
+        ws.close();
+      };
+    }
+
+    // 25Hz transmission loop (every 40ms)
+    setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        // If user is actively touching controls, touch has priority over gyro!
+        const isUserTouching = (throttleTouchId !== null || steeringTouchId !== null || isMouseDownThrottle || isMouseDownSteering);
+
+        if (gyroActive && !isUserTouching) {
+          // Send Gyro tilt data: tiltY (pitch) for throttle, tiltX (roll) for steering
+          // In landscape: beta corresponds to pitch tilt, gamma to roll tilt
+          const tiltPitch = (rawBeta - zeroBeta);
+          const tiltRoll = (rawGamma - zeroGamma);
+          ws.send(`y:0.0,tx:${tiltRoll.toFixed(1)},ty:${tiltPitch.toFixed(1)}`);
+        } else {
+          // Send regular joystick PWM
+          const { tUs, sUs } = calculatePwm();
+          ws.send(`T:${tUs},S:${sUs}`);
+        }
+      }
+    }, 40);
+
     updateOutputs();
-    startBoostCooldown(); // Initialize the cooldown timer display
-});
-/* --- END BOOST FEATURE CODE --- */
+    window.addEventListener('DOMContentLoaded', initWebSocket);
+  </script>
+</body>
+</html>

@@ -2,6 +2,7 @@
 #include <ESP8266WebServer.h>
 #include <WebSocketsServer.h>
 #include <Servo.h>
+#include <cmath>
 
 // ==========================================
 // 1. HARDWARE PIN DEFINITIONS & CONSTANTS
@@ -40,18 +41,17 @@ Servo escThrottle;
 volatile unsigned long lastPacketTime = 0;
 volatile bool failsafeActive          = false;
 
-// *** BOOST MODE STATE VARIABLES ***
-volatile bool isBoostingActive     = false;
-volatile unsigned long boostStartTime = 0; // Time when boost was activated
-const unsigned long BOOST_DURATION_MS = 5000; // Boost lasts 5 seconds
-const unsigned long COOLDOWN_DURATION_MS = 20000; // Must wait 20 seconds before next boost
-volatile unsigned long lastBoostTime   = 0;  // Time of the last successful boost activation
+// Boost mode state variables
+volatile bool isBoostingActive        = false;
+volatile unsigned long boostStartTime = 0;
+const unsigned long BOOST_DURATION_MS = 5000;      // 5-second max burst
+const unsigned long COOLDOWN_DURATION_MS = 20000;  // 20-second cooldown
+volatile unsigned long lastBoostTime  = 0;
 
-// *** GYRO CONTROL CONSTANTS ***
-const float GYRO_SCALE = 0.25f;               // Input scale factor (adjust for responsiveness)
-const int     GYRO_THRESHOLD_DEG = 3;         // Minimum tilt before motion is applied
-const int     GYRO_DEADZONE_US = 1490;        // Neutral PWM tolerance (±10us around 1500)
-const char*   CALIBRATE_CMD = "GYRO_CAL";     // Command to reset zero-point heading
+// Gyro control parameters
+const float GYRO_SCALE            = 0.5f;   // Responsiveness scaling
+const float GYRO_THRESHOLD_DEG    = 3.0f;   // Deadzone angle
+const float GYRO_MAX_TILT_DEG     = 30.0f;  // Max tilt angle for full deflection
 
 int currentThrottleUs                 = PULSE_NEUTRAL_US;
 int currentSteeringUs                 = PULSE_NEUTRAL_US;
@@ -100,6 +100,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       justify-content: space-between;
       padding: 0 16px;
       z-index: 20;
+      gap: 8px;
     }
     .brand {
       display: flex;
@@ -109,12 +110,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       font-weight: 700;
       letter-spacing: 1px;
       color: #f59e0b;
+      white-space: nowrap;
     }
-    .status-group {
+    .actions-group {
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-size: 12px;
+      gap: 8px;
+      flex-wrap: nowrap;
     }
     .badge {
       display: inline-flex;
@@ -128,6 +130,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       letter-spacing: 0.5px;
       background: #1e293b;
       color: #94a3b8;
+      white-space: nowrap;
     }
     .badge.connected {
       background: rgba(16, 185, 129, 0.15);
@@ -149,40 +152,66 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       background: #1e2533;
       border: 1px solid #334155;
       color: #cbd5e1;
-      padding: 5px 12px;
+      padding: 5px 10px;
       border-radius: 6px;
       font-size: 11px;
       font-weight: 600;
       cursor: pointer;
+      white-space: nowrap;
+      transition: background-color 0.2s, border-color 0.2s, color 0.2s;
     }
     .btn-toggle:active {
       background: #334155;
+    }
+    #boostBtn {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
+    #boostBtn.active-boost {
+      background: #ef4444;
+      color: #ffffff;
+      animation: pulse-red 0.6s infinite alternate;
+    }
+    #boostBtn.cooldown {
+      background: #1e2533;
+      border-color: #475569;
+      color: #64748b;
+      cursor: not-allowed;
+    }
+    #gyroToggleBtn.active-gyro {
+      background: rgba(6, 182, 212, 0.2);
+      border-color: #06b6d4;
+      color: #67e8f9;
+    }
+    @keyframes pulse-red {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
     }
     /* Trim & Tuning Drawer */
     #tuning-panel {
       display: none;
       background: #141923;
       border-bottom: 1px solid #232c3d;
-      padding: 10px 20px;
-      display: flex;
-      gap: 24px;
+      padding: 10px 16px;
+      gap: 20px;
       justify-content: center;
       align-items: center;
       font-size: 12px;
       z-index: 15;
+      flex-wrap: wrap;
     }
     .tune-item {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
     .tune-item label {
       color: #94a3b8;
       font-weight: 600;
-      min-width: 90px;
     }
     .tune-item input[type="range"] {
-      width: 140px;
+      width: 120px;
       accent-color: #f59e0b;
       cursor: pointer;
     }
@@ -363,14 +392,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         </svg>
         <span>RC // NODEMCU ESP-12E</span>
       </div>
-      <div class="status-group">
+      <div class="actions-group">
+        <button id="gyroToggleBtn" class="btn-toggle">GYRO: OFF</button>
+        <button id="gyroCalBtn" class="btn-toggle" style="display:none;">CALIBRATE</button>
+        <button id="boostBtn" class="btn-toggle">BOOST</button>
+        <button id="tuneToggleBtn" class="btn-toggle">TUNING & TRIM</button>
         <div id="statusBadge" class="badge disconnected">
           <span class="dot"></span>
           <span id="statusText">CONNECTING</span>
         </div>
-        <button id="tuneToggleBtn" class="btn-toggle">TUNING & TRIM</button>
-        <!-- BOOST MODE OVERRIDE -->
-        <button id="boostBtn" class="btn-toggle" style="background-color: #ef4444; border-color: #dc2626;">BOOST (LOCKED)</button>
       </div>
     </header>
 
@@ -414,18 +444,34 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   </div>
 
   <script>
-    // State
+    // ==========================================
+    // STATE & VARIABLES
+    // ==========================================
     let ws = null;
-    let throttleRaw = 0.0; // -1.0 (full reverse) to +1.0 (full forward)
-    let steeringRaw = 0.0; // -1.0 (full left) to +1.0 (full right)
+    let throttleRaw = 0.0; // -1.0 (reverse) to +1.0 (forward)
+    let steeringRaw = 0.0; // -1.0 (left) to +1.0 (right)
 
     let throttleTouchId = null;
     let steeringTouchId = null;
 
-    let maxThrottlePercent = 65; // Speed ceiling for indoor safety
+    let maxThrottlePercent = 65;
     let steeringTrimUs = 0;
 
-    // Elements
+    // Boost Mode State
+    const BOOST_DURATION_MS = 5000;
+    const COOLDOWN_DURATION_MS = 20000;
+    let isBoosting = false;
+    let lastBoostTime = 0;
+    let boostTimer = null;
+
+    // Gyro Mode State
+    let gyroActive = false;
+    let rawBeta = 0;   // Forward / backward tilt
+    let rawGamma = 0;  // Left / right tilt
+    let zeroBeta = 0;
+    let zeroGamma = 0;
+
+    // DOM Elements
     const statusBadge = document.getElementById('statusBadge');
     const statusText = document.getElementById('statusText');
     const throttleTrack = document.getElementById('throttleTrack');
@@ -443,7 +489,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     const trimVal = document.getElementById('trimVal');
     const resetTrimBtn = document.getElementById('resetTrimBtn');
 
-    // Toggle Tuning
+    const boostBtn = document.getElementById('boostBtn');
+    const gyroToggleBtn = document.getElementById('gyroToggleBtn');
+    const gyroCalBtn = document.getElementById('gyroCalBtn');
+
+    // ==========================================
+    // UI CONTROLS & TUNING
+    // ==========================================
     tuneToggleBtn.addEventListener('click', () => {
       tuningPanel.style.display = (tuningPanel.style.display === 'flex') ? 'none' : 'flex';
     });
@@ -451,6 +503,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     speedLimitInput.addEventListener('input', (e) => {
       maxThrottlePercent = parseInt(e.target.value);
       speedVal.textContent = maxThrottlePercent + '%';
+      updateOutputs();
     });
 
     steerTrimInput.addEventListener('input', (e) => {
@@ -467,24 +520,131 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     });
 
     // ==========================================
-    // TOUCH / MOUSE CONTROLLER LOGIC
+    // BOOST MODE
     // ==========================================
-    const TRACK_V_TRAVEL = 160; // Max vertical travel range in px
-    const TRACK_H_TRAVEL = 170; // Max horizontal travel range in px
+    function updateBoostButton() {
+      const now = Date.now();
+      const elapsedSinceBoost = now - lastBoostTime;
+
+      if (isBoosting) {
+        const remaining = Math.max(0, Math.ceil((BOOST_DURATION_MS - (now - boostStartTime)) / 1000));
+        boostBtn.textContent = `BOOSTING (${remaining}s)`;
+        boostBtn.className = 'btn-toggle active-boost';
+        boostBtn.disabled = true;
+      } else if (elapsedSinceBoost < COOLDOWN_DURATION_MS) {
+        const remaining = Math.max(1, Math.ceil((COOLDOWN_DURATION_MS - elapsedSinceBoost) / 1000));
+        boostBtn.textContent = `COOLDOWN (${remaining}s)`;
+        boostBtn.className = 'btn-toggle cooldown';
+        boostBtn.disabled = true;
+      } else {
+        boostBtn.textContent = 'BOOST';
+        boostBtn.className = 'btn-toggle';
+        boostBtn.disabled = false;
+      }
+    }
+
+    let boostStartTime = 0;
+    boostBtn.addEventListener('click', () => {
+      const now = Date.now();
+      if (isBoosting || (now - lastBoostTime < COOLDOWN_DURATION_MS)) return;
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send("BOOST_ON");
+        isBoosting = true;
+        boostStartTime = now;
+        lastBoostTime = now;
+        updateBoostButton();
+
+        if (boostTimer) clearInterval(boostTimer);
+        boostTimer = setInterval(() => {
+          const currentTime = Date.now();
+          if (isBoosting && (currentTime - boostStartTime >= BOOST_DURATION_MS)) {
+            isBoosting = false;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send("BOOST_OFF");
+            }
+          }
+          updateBoostButton();
+          if (!isBoosting && (currentTime - lastBoostTime >= COOLDOWN_DURATION_MS)) {
+            clearInterval(boostTimer);
+            boostTimer = null;
+          }
+        }, 500);
+      }
+    });
+
+    // ==========================================
+    // GYRO TILT SENSING
+    // ==========================================
+    async function enableGyro() {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+          const permission = await DeviceOrientationEvent.requestPermission();
+          if (permission !== 'granted') {
+            alert('Device orientation permission denied.');
+            return false;
+          }
+        } catch (err) {
+          console.error(err);
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function handleOrientation(e) {
+      if (e.beta !== null) rawBeta = e.beta;
+      if (e.gamma !== null) rawGamma = e.gamma;
+    }
+
+    gyroToggleBtn.addEventListener('click', async () => {
+      if (!gyroActive) {
+        const ok = await enableGyro();
+        if (ok) {
+          window.addEventListener('deviceorientation', handleOrientation);
+          zeroBeta = rawBeta;
+          zeroGamma = rawGamma;
+          gyroActive = true;
+          gyroToggleBtn.textContent = 'GYRO: ON';
+          gyroToggleBtn.classList.add('active-gyro');
+          gyroCalBtn.style.display = 'inline-block';
+        }
+      } else {
+        window.removeEventListener('deviceorientation', handleOrientation);
+        gyroActive = false;
+        gyroToggleBtn.textContent = 'GYRO: OFF';
+        gyroToggleBtn.classList.remove('active-gyro');
+        gyroCalBtn.style.display = 'none';
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send("GYRO_CAL");
+        }
+      }
+    });
+
+    gyroCalBtn.addEventListener('click', () => {
+      zeroBeta = rawBeta;
+      zeroGamma = rawGamma;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send("GYRO_CAL");
+      }
+    });
+
+    // ==========================================
+    // JOYSTICK TOUCH & MOUSE CONTROLS
+    // ==========================================
+    const TRACK_V_TRAVEL = 160;
+    const TRACK_H_TRAVEL = 170;
 
     function updateThrottleVisual(normVal) {
-      // normVal: -1.0 to 1.0 (Up is positive 1.0, Down is negative -1.0)
       const px = -(normVal * (TRACK_V_TRAVEL / 2));
       throttleKnob.style.transform = `translate(-50%, calc(-50% + ${px}px))`;
     }
 
     function updateSteeringVisual(normVal) {
-      // normVal: -1.0 to 1.0 (Right is positive 1.0, Left is negative -1.0)
       const px = normVal * (TRACK_H_TRAVEL / 2);
       steeringKnob.style.transform = `translate(calc(-50% + ${px}px), -50%)`;
     }
 
-    // Multi-touch tracking on Throttle Track
     throttleTrack.addEventListener('touchstart', (e) => {
       e.preventDefault();
       if (throttleTouchId === null) {
@@ -495,7 +655,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       }
     }, { passive: false });
 
-    // Multi-touch tracking on Steering Track
     steeringTrack.addEventListener('touchstart', (e) => {
       e.preventDefault();
       if (steeringTouchId === null) {
@@ -520,14 +679,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     function releaseTouch(id) {
       if (id === throttleTouchId) {
         throttleTouchId = null;
-        throttleRaw = 0.0; // Auto-spring to neutral!
+        throttleRaw = 0.0;
         throttleKnob.classList.remove('active-knob');
         updateThrottleVisual(0.0);
         updateOutputs();
       }
       if (id === steeringTouchId) {
         steeringTouchId = null;
-        steeringRaw = 0.0; // Auto-spring to center!
+        steeringRaw = 0.0;
         steeringKnob.classList.remove('active-knob');
         updateSteeringVisual(0.0);
         updateOutputs();
@@ -546,16 +705,12 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       }
     });
 
-    // Touch position handlers
     function handleThrottleMove(clientY) {
       const rect = throttleTrack.getBoundingClientRect();
       const centerY = rect.top + rect.height / 2;
       const deltaY = clientY - centerY;
-      const maxHalf = TRACK_V_TRAVEL / 2;
-      // Upward motion (deltaY < 0) corresponds to positive forward throttle
-      let norm = - (deltaY / maxHalf);
+      let norm = -(deltaY / (TRACK_V_TRAVEL / 2));
       norm = Math.max(-1.0, Math.min(1.0, norm));
-      // Deadband around neutral
       if (Math.abs(norm) < 0.04) norm = 0.0;
       throttleRaw = norm;
       updateThrottleVisual(norm);
@@ -566,9 +721,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       const rect = steeringTrack.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const deltaX = clientX - centerX;
-      const maxHalf = TRACK_H_TRAVEL / 2;
-      // Right motion (deltaX > 0) is positive right steering
-      let norm = deltaX / maxHalf;
+      let norm = deltaX / (TRACK_H_TRAVEL / 2);
       norm = Math.max(-1.0, Math.min(1.0, norm));
       if (Math.abs(norm) < 0.04) norm = 0.0;
       steeringRaw = norm;
@@ -576,7 +729,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       updateOutputs();
     }
 
-    // Mouse Fallbacks for PC testing
+    // Mouse Fallback
     let isMouseDownThrottle = false;
     let isMouseDownSteering = false;
 
@@ -614,16 +767,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       }
     });
 
-    // Calculate Microseconds and update UI readout
+    // ==========================================
+    // PWM OUTPUT CALCULATION (CORRECTED SIGNS)
+    // ==========================================
     function calculatePwm() {
-      // THROTTLE LIMIT SET TO 65% OF MAX POWER
-const BOOST_LIMIT_PERCENT = 0.65;
-// Throttle scaled by speed limiter: range +/- (500 * limit)
+      // Scale throttle: 1500 + forward offset (positive is forward)
       const scale = maxThrottlePercent / 100.0;
-      const tUs = Math.round(1500 - (throttleRaw * 500 * scale));
-      
-      // Steering with trim offset: clamped strictly between 1000 and 2000
-      let sUs = Math.round(1500 - (steeringRaw * 500) + steeringTrimUs);
+      const tUs = Math.round(1500 + (throttleRaw * 500 * scale));
+
+      // Scale steering: 1500 + right offset (positive is right)
+      let sUs = Math.round(1500 + (steeringRaw * 500) + steeringTrimUs);
       sUs = Math.max(1000, Math.min(2000, sUs));
 
       return { tUs, sUs };
@@ -644,7 +797,7 @@ const BOOST_LIMIT_PERCENT = 0.65;
     }
 
     // ==========================================
-    // WEBSOCKET TELEMETRY & HEARTBEAT
+    // WEBSOCKET TELEMETRY LOOP
     // ==========================================
     function initWebSocket() {
       const host = window.location.hostname || "192.168.4.1";
@@ -669,25 +822,53 @@ const BOOST_LIMIT_PERCENT = 0.65;
       };
     }
 
-    // 25Hz transmission loop (every 40ms) provides smooth response and heartbeat
+    // 25Hz transmission loop (every 40ms)
     setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        const { tUs, sUs } = calculatePwm();
-        // Send compact payload: "T:xxxx,S:xxxx"
-        ws.send(`T:${tUs},S:${sUs}`);
+        // If user is actively touching controls, touch has priority over gyro!
+        const isUserTouching = (throttleTouchId !== null || steeringTouchId !== null || isMouseDownThrottle || isMouseDownSteering);
+
+        if (gyroActive && !isUserTouching) {
+          // Send Gyro tilt data: tiltY (pitch) for throttle, tiltX (roll) for steering
+          // In landscape: beta corresponds to pitch tilt, gamma to roll tilt
+          const tiltPitch = (rawBeta - zeroBeta);
+          const tiltRoll = (rawGamma - zeroGamma);
+          ws.send(`y:0.0,tx:${tiltRoll.toFixed(1)},ty:${tiltPitch.toFixed(1)}`);
+        } else {
+          // Send regular joystick PWM
+          const { tUs, sUs } = calculatePwm();
+          ws.send(`T:${tUs},S:${sUs}`);
+        }
       }
     }, 40);
 
-    // Initial load
     updateOutputs();
     window.addEventListener('DOMContentLoaded', initWebSocket);
   </script>
 </body>
-</html>
-)rawliteral";
+</html>)rawliteral";
 
 // ==========================================
-// 4. HTTP & WEBSOCKET EVENT HANDLERS
+// 4. GYRO SENSOR HELPER FUNCTIONS
+// ==========================================
+int calculateGyroPWM(float degTilt) {
+  if (std::fabs(degTilt) < GYRO_THRESHOLD_DEG) return PULSE_NEUTRAL_US;
+  float clamped = std::fmax(-GYRO_MAX_TILT_DEG, std::fmin(GYRO_MAX_TILT_DEG, degTilt));
+  float norm = clamped / GYRO_MAX_TILT_DEG; // -1.0 to +1.0
+  int pwm = static_cast<int>(std::round(PULSE_NEUTRAL_US + (norm * 500.0f * GYRO_SCALE)));
+  return constrain(pwm, PULSE_MIN_US, PULSE_MAX_US);
+}
+
+int calculateGyroHeadingPWM(float degRoll) {
+  if (std::fabs(degRoll) < GYRO_THRESHOLD_DEG) return PULSE_NEUTRAL_US;
+  float clamped = std::fmax(-GYRO_MAX_TILT_DEG, std::fmin(GYRO_MAX_TILT_DEG, degRoll));
+  float norm = clamped / GYRO_MAX_TILT_DEG; // -1.0 to +1.0
+  int pwm = static_cast<int>(std::round(PULSE_NEUTRAL_US + (norm * 500.0f * GYRO_SCALE)));
+  return constrain(pwm, PULSE_MIN_US, PULSE_MAX_US);
+}
+
+// ==========================================
+// 5. HTTP & WEBSOCKET EVENT HANDLERS
 // ==========================================
 void handleRoot() {
   server.send_P(200, "text/html", INDEX_HTML);
@@ -697,9 +878,10 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
   switch (type) {
     case WStype_DISCONNECTED:
       Serial.printf("[WS] Client #%u disconnected -> Failsafe engaged\n", num);
-      // Immediately stop motor on client disconnect
-      escThrottle.writeMicroseconds(PULSE_NEUTRAL_US);
       failsafeActive = true;
+      isBoostingActive = false; // Immediately cancel active boost
+      currentThrottleUs = PULSE_NEUTRAL_US;
+      escThrottle.writeMicroseconds(PULSE_NEUTRAL_US);
       break;
 
     case WStype_CONNECTED: {
@@ -707,74 +889,72 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       Serial.printf("[WS] Client #%u connected from %d.%d.%d.%d\n", num, ip[0], ip[1], ip[2], ip[3]);
       lastPacketTime = millis();
       failsafeActive = false;
+      isBoostingActive = false;
       break;
     }
 
     case WStype_TEXT: {
-      // Check for specific commands first
-      std::string payloadStr((char*)payload);
+      String payloadStr = String((char*)payload);
+      unsigned long now = millis();
+      float yawDeg = 0.0f, tiltX = 0.0f, tiltY = 0.0f;
+      int parsedThrottle = PULSE_NEUTRAL_US;
+      int parsedSteering = PULSE_NEUTRAL_US;
 
-      // Raw Device Motion Data: yaw|tiltX|tiltY
-      float yawDeg = 0, tiltX = 0, tiltY = 0;
+      // 1. Gyro packet telemetry: "y:%f,tx:%f,ty:%f"
       if (sscanf((char*)payload, "y:%f,tx:%f,ty:%f", &yawDeg, &tiltX, &tiltY) == 3) {
-        // Apply gyro control — throttle from tiltY, steering from yaw+tiltX
         currentThrottleUs = calculateGyroPWM(tiltY);
         currentSteeringUs = calculateGyroHeadingPWM(yawDeg + tiltX);
 
-        if (!isBoostingActive) {
+        if (!isBoostingActive && !failsafeActive) {
           escThrottle.writeMicroseconds(currentThrottleUs);
           steeringServo.writeMicroseconds(currentSteeringUs);
         }
-
-        lastPacketTime = millis(); // Valid heartbeat from gyro data
+        lastPacketTime = now;
+        failsafeActive = false;
       }
-
-      if (payloadStr == "BOOST_ON") {
-        unsigned long now = millis();
+      // 2. Boost commands
+      else if (payloadStr == "BOOST_ON") {
         long timeSinceLastBoost = now - lastBoostTime;
-        
-        // 1. ENFORCE COOLDOWN
-        if (!isBoostingActive && (timeSinceLastBoost >= COOLDOWN_DURATION_MS)) {
+        if (!isBoostingActive && (lastBoostTime == 0 || timeSinceLastBoost >= (long)COOLDOWN_DURATION_MS)) {
           isBoostingActive = true;
           boostStartTime = now;
-          Serial.println("[BOOST] Boost activated! Maximum throttle engaged for 5s.");
-          lastBoostTime = now; // Record success time
-        } else if (isBoostingActive) {
-           // Already boosting, ignore command
+          lastBoostTime = now;
+          Serial.println("[BOOST] Boost activated! Maximum throttle engaged.");
         } else {
-          long timeLeft = COOLDOWN_DURATION_MS - timeSinceLastBoost;
-          Serial.printf("[BOOST] Cooldown active. %ld ms remaining.\n", timeLeft);
-        yawDeg = 0; tiltX = 0; tiltY = 0;     // Reset zero-point for next calibration cycle
-        lastPacketTime = now;                // Treat any valid packet (even failed boost attempt) as a heartbeat
+          Serial.println("[BOOST] Boost request ignored (active or cooling down).");
         }
- 
+        lastPacketTime = now;
+        failsafeActive = false;
+      }
       else if (payloadStr == "BOOST_OFF") {
         isBoostingActive = false;
-        Serial.println("[BOOST] Boost manually deactivated.");
-        lastPacketTime = millis(); // Heartbeat reset
-        break;
+        Serial.println("[BOOST] Boost deactivated.");
+        lastPacketTime = now;
+        failsafeActive = false;
       }
-
-      // Standard Telemetry Packet: T:xxxx,S:yyyy
+      // 3. Gyro calibration command
+      else if (payloadStr == "GYRO_CAL") {
+        currentThrottleUs = PULSE_NEUTRAL_US;
+        currentSteeringUs = PULSE_NEUTRAL_US;
+        if (!isBoostingActive && !failsafeActive) {
+          escThrottle.writeMicroseconds(PULSE_NEUTRAL_US);
+          steeringServo.writeMicroseconds(PULSE_NEUTRAL_US);
+        }
+        lastPacketTime = now;
+        failsafeActive = false;
+        Serial.println("[GYRO] Zero calibration acknowledged.");
+      }
+      // 4. Standard joystick telemetry: "T:%d,S:%d"
       else if (sscanf((char*)payload, "T:%d,S:%d", &parsedThrottle, &parsedSteering) == 2) {
-        // Clamp bounds for hardware safety
         currentThrottleUs = constrain(parsedThrottle, PULSE_MIN_US, PULSE_MAX_US);
         currentSteeringUs = constrain(parsedSteering, PULSE_MIN_US, PULSE_MAX_US);
 
-        if (!isBoostingActive) {
-            // Apply to ESC and Servo only if not in Boost mode (Boost is handled by the loop() function)
-            escThrottle.writeMicroseconds(currentThrottleUs);
-            steeringServo.writeMicroseconds(currentSteeringUs);
-        } 
-        // If in boost, the loop() handles writing the max throttle, so we only need to update state variables here.
-
-        // Reset watchdog timer (This is always a valid heartbeat)
-        lastPacketTime = millis();
-
-
-          failsafeactive = false;
-          Serial.println("[FAILSAFE] Heartbeat restored. Resuming control.");
+        if (!isBoostingActive && !failsafeActive) {
+          escThrottle.writeMicroseconds(currentThrottleUs);
+          steeringServo.writeMicroseconds(currentSteeringUs);
         }
+        lastPacketTime = now;
+        failsafeActive = false;
       }
       break;
     }
@@ -782,49 +962,10 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
     default:
       break;
   }
-
-// ==========================================
-// HELPER FUNCTIONS — GYRO CONTROL
-    float yaw, tiltX, tiltY;
-    if (sscanf((char*)payload.c_str(), "y:%f,tx:%f,ty:%f", &yaw, &tiltX, &tiltY) == 3) {
-      currentThrottleUs = calculateGyroPWM(tiltY);
-      currentSteeringUs = calculateGyroHeadingPWM(yaw + tiltX);
-
-      if (!isBoostingActive) {
-        escThrottle.writeMicroseconds(currentThrottleUs);
-        steeringServo.writeMicroseconds(currentSteeringUs);
-      }
-
-      lastPacketTime = millis(); // Valid heartbeat from gyro data
-    }
-  
-// ==========================================
-int calculateGyroPWM(float degTilt, int deadzoneUs = GYRO_DEADZONE_US) {
-  if (Math.abs(degTilt) < GYRO_THRESHOLD_DEG) return PULSE_NEUTRAL_US; // Dead zone
-  float scaled = degTilt * GYRO_SCALE / GYRO_THRESHOLD_DEG;
-  int pwm = Math.round(PULSE_NEUTRAL_US + (scaled * (PULSE_MAX_US - PULSE_MIN_US) / 2.0));
-  return constrain(pwm, PULSE_MIN_US, PULSE_MAX_US);
-}
-
-int calculateGyroHeadingPWM(float degYaw, int deadzoneUs = GYRO_DEADZONE_US) {
-  if (Math.abs(degYaw) < GYRO_THRESHOLD_DEG) return PULSE_NEUTRAL_US; // Dead zone
-  float scaled = degYaw * GYRO_SCALE / GYRO_THRESHOLD_DEG;
-  int pwm = Math.round(PULSE_NEUTRAL_US + (scaled * (PULSE_MAX_US - PULSE_MIN_US) / 2.0));
-  return constrain(pwm, PULSE_MIN_US, PULSE_MAX_US);
-}
-  if (sscanf(payload, "y:%f,tx:%f,ty:%f", &yawDeg, &tiltX, &tiltY) != 3) return 0;
-  currentThrottleUs = calculateGyroPWM(tiltY);
-  currentSteeringUs = calculateGyroHeadingPWM(yawDeg + tiltX);
-  if (!isBoostingActive) {
-    escThrottle.writeMicroseconds(currentThrottleUs);
-    steeringServo.writeMicroseconds(currentSteeringUs);
-  }
-  lastPacketTime = millis(); // Valid heartbeat
-  return currentThrottleUs;
 }
 
 // ==========================================
-// 5. ARDUINO SETUP & LOOP
+// 6. ARDUINO SETUP & LOOP
 // ==========================================
 void setup() {
   Serial.begin(115200);
@@ -833,7 +974,7 @@ void setup() {
   Serial.println("  NodeMCU ESP8266 RC CAR CONTROLLER     ");
   Serial.println("========================================");
 
-  // CRITICAL: Pre-set neutral pulse BEFORE attaching to avoid start-up twitch/lurch
+  // Arming safeguard: pre-set 1500us neutral pulse BEFORE attach
   escThrottle.writeMicroseconds(PULSE_NEUTRAL_US);
   steeringServo.writeMicroseconds(PULSE_NEUTRAL_US);
 
@@ -870,43 +1011,41 @@ void setup() {
 
   lastPacketTime = millis();
   failsafeActive = false;
+  isBoostingActive = false;
   Serial.println("[SYSTEM] Armed and ready for connection.");
 }
 
 void loop() {
-  // Service network stacks
   webSocket.loop();
   server.handleClient();
 
   unsigned long now = millis();
-  int targetThrottleUs = PULSE_NEUTRAL_US; // Default to neutral
 
-  // 1. BOOST CHECK (Highest Priority)
-  if (isBoostingActive && (now - boostStartTime < BOOST_DURATION_MS)) {
-    targetThrottleUs = PULSE_MAX_US; // Force Max Throttle during active boost
-  } 
-  // 2. THROTTLE/FAILSAFE CHECK
-  else if (!failsafeActive) {
-    // Use the current throttled value received from web socket (and limited by JS client)
-    targetThrottleUs = currentThrottleUs;
-  } else {
-    // Failsafe active: keep neutral
-    targetThrottleUs = PULSE_NEUTRAL_US;
-  }
-
-  // Apply Throttle Command
-  escThrottle.writeMicroseconds(targetThrottleUs);
-
-  // Watchdog Failsafe Check (If no heartbeat received)
+  // 1. Watchdog Failsafe Check (HIGHEST PRIORITY)
   if (!failsafeActive && (now - lastPacketTime > FAILSAFE_TIMEOUT_MS)) {
     failsafeActive = true;
+    isBoostingActive = false; // Always cancel boost immediately!
+    currentThrottleUs = PULSE_NEUTRAL_US;
+    escThrottle.writeMicroseconds(PULSE_NEUTRAL_US);
     Serial.println("[FAILSAFE] WATCHDOG TRIGGERED! Throttle snapped to 1500us neutral.");
   }
 
-  // Boost Timeout Check (Must run every loop iteration)
+  // 2. Boost Timeout Check
   if (isBoostingActive && (now - boostStartTime >= BOOST_DURATION_MS)) {
     isBoostingActive = false;
-    Serial.println("[BOOST] Boost period ended. Reverting to normal throttle control.");
-    // Note: The next cycle's logic will handle reverting the PWM value.
+    Serial.println("[BOOST] Boost duration elapsed. Reverting to normal throttle.");
   }
+
+  // 3. Throttle Resolution (Failsafe ALWAYS overrides everything)
+  int targetThrottleUs = PULSE_NEUTRAL_US;
+  if (failsafeActive) {
+    targetThrottleUs = PULSE_NEUTRAL_US;
+    isBoostingActive = false;
+  } else if (isBoostingActive) {
+    targetThrottleUs = PULSE_MAX_US;
+  } else {
+    targetThrottleUs = currentThrottleUs;
+  }
+
+  escThrottle.writeMicroseconds(targetThrottleUs);
 }
